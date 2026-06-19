@@ -29,10 +29,10 @@ big list; we retrieve a *smart subset* per query. Always keep the word
 | Client still sees 150 tools | Client sees 3 facade tools → then top-k relevant |
 | Solves "many servers" | Solves "many **tools in context**" |
 
-- **Status:** Phase 0 (walking skeleton) + Phase 1 (local-embeddings RAG core)
-  built and verified end-to-end; Phase 2 dashboard UI prototyped on mock data
-  (`docs/report-prototype.html`). Next: Phase 2 proper — wire real metrics
-  (exact formulas in §5.1) into that prototype. See §6 and §7.
+- **Status:** Phase 0 (walking skeleton) ✅ + Phase 1 (local-embeddings RAG core)
+  ✅ + Phase 2 (dual-mode metrics + dashboard, commit `0d4c500`) ✅ — built and
+  verified end-to-end. Next: Phase 3 — Hardening & DX (tests, CI, config
+  validation). See §6 and §7.
 - **License:** Apache-2.0, fully open source, no open-core, no telemetry.
 - **Stack:** TypeScript + `@modelcontextprotocol/sdk` 1.29.0 + zod, Node 22, pnpm.
 
@@ -267,20 +267,22 @@ tool caps.
 
 - `pnpm build` is green.
 - **End-to-end smoke test passes** (`smoke-test.mjs`, client → router →
-  `@modelcontextprotocol/server-everything`):
-  - client sees **only the 3 facade tools**, not the downstream's 13;
-  - `search_tools('echo a message back')` surfaces `everything.echo`;
-  - `call_tool(everything, echo, {message})` proxies through → `Echo: router-works`;
-  - **semantic retrieval (Phase 1):** `search_tools('show me a small picture')`
+  `@modelcontextprotocol/server-everything`) — all 7 steps:
+  - [1] client sees **4 facade tools** (`search_tools`, `call_tool`, `list_servers`, `get_metrics`);
+  - [2] `list_servers` returns connected servers and tool counts;
+  - [3] `search_tools('echo a message back')` surfaces `everything.echo`;
+  - [4] `call_tool(everything, echo, {message})` proxies through → `Echo: router-works`;
+  - [5] **semantic retrieval:** `search_tools('show me a small picture')`
     returns `everything.get-tiny-image` on top despite zero keyword overlap;
-  - index persists to `.rag-mcp/index.json` and reloads without re-embedding.
-- **Dashboard UI prototype** (`docs/report-prototype.html`, mock data, verified in
-  browser): editorial design, Subscription/API tabs, dark/light toggle, what-if
-  sliders (price/window), measured-vs-assumed split, sortable+expandable tool
-  table, GitHub author link. Phase 2 wires real metrics into this shape.
-- Work since the initial commit (Phase 1 + dashboard prototype + this doc) is on
-  branch `main`, **uncommitted and NOT pushed** (pending user OK — pushing is an
-  outward-facing publish action).
+  - [6] **`get_metrics`** returns valid snapshot (requests, baseline, facade, saved, perToolCalls);
+  - [7] **`report.html`** generated on shutdown with live data (real tool names, not mock).
+  - Index persists to `.rag-mcp/index.json` and reloads without re-embedding.
+- **Dashboard** (`docs/report-prototype.html` + `src/report.ts`): editorial
+  design, Subscription/API tabs, dark/light toggle, what-if sliders (price/window),
+  measured-vs-assumed split, sortable+expandable tool table, GitHub author link.
+  Now wired to live metrics — generated as `.rag-mcp/report.html` on shutdown.
+- All work on branch `main`, **committed but NOT pushed** (pending user OK — pushing
+  is an outward-facing publish action).
 
 Run it yourself:
 ```bash
@@ -323,22 +325,27 @@ Verified end-to-end (`smoke-test.mjs` step [5]).
 
 **Acceptance:** ✅ `search_tools("<intent with no exact keyword>")` returns the correct tool in top-k (e.g. "show me a small picture" → get-tiny-image @ 0.78); ✅ index persists and reloads without re-embedding (re-run logs "loaded persisted index"); ✅ no network calls / no API key at runtime once the model is cached.
 
-### Phase 2 — Dual-mode metrics + dashboard ⬜ NEXT
-Status: not started. Implements §5 (exact formulas now in §5.1–§5.3). **Design
-already done** — wire real metrics into the existing prototype's shape.
+### Phase 2 — Dual-mode metrics + dashboard ✅ DONE
+Status: complete. Per-request metrics accounting (§5.1) wired into the router;
+live `report.html` generated on shutdown. Verified end-to-end (`smoke-test.mjs`
+steps [6]–[7]).
 - [x] Dashboard UI prototype: `docs/report-prototype.html` (editorial design,
   dual-mode tabs, dark/light, what-if sliders for price/window, measured-vs-
   assumed split, sortable/expandable tool table). Mock data only.
-- [ ] Add `tiktoken` for local token counting (offline default); optional Anthropic `count_tokens` exact mode
-- [ ] `metrics.ts` — **per-request** accounting per §5.1: `baseline_r`, `facade`, `S_r`, `saved_r`; aggregate to session by sum. Guard R=0.
-- [ ] Mode switch on `billing.mode`: `api` → `$ saved` (note caching caveat §5.2); `subscription` → freed context (tokens + % window), est. extra requests, cap flag gated on `billing.client`
-- [ ] `get_metrics` facade tool (live read)
-- [ ] `report.ts` — render the prototype from live metrics → single-file `report.html` in `.rag-mcp/`. **Inline/subset the web fonts** for offline use (prototype currently pulls Google Fonts via CDN)
-- [ ] Regenerate report on SessionEnd (document the hook; provide a `--report` flag fallback)
+- [x] Add `js-tiktoken` for local token counting (offline default, cl100k_base)
+- [x] `src/metrics.ts` — **per-request** accounting per §5.1: `baseline_r`, `facade`, `S_r`, `saved_r`; aggregate to session by sum. Guard R=0.
+- [x] Mode switch on `billing.mode`: `api` → `$ saved` (note caching caveat §5.2); `subscription` → freed context (tokens + % window), est. extra requests, cap flag gated on `billing.client`
+- [x] `get_metrics` facade tool (live read) — 4th facade tool
+- [x] `src/report.ts` — render the prototype from live metrics → single-file `report.html` in `.rag-mcp/`. Generated on SIGINT/SIGTERM.
+- [ ] **Deferred:** inline/subset web fonts for offline use (prototype currently pulls Google Fonts via CDN — editorial fonts are ~200KB; low priority for MVP)
+- [x] Regenerate report on shutdown (SIGINT/SIGTERM handlers in `index.ts`)
 
-**Acceptance:** after a session, `report.html` shows correct numbers in BOTH modes (flip `billing.mode` in config and re-run); subscription mode never shows `$`; per-request accounting matches §5.1; opens offline (no CDN).
+**Acceptance:** ✅ after a session, `report.html` shows correct numbers in BOTH
+modes (flip `billing.mode` in config and re-run); ✅ subscription mode never
+shows `$`; ✅ per-request accounting matches §5.1; ✅ `get_metrics` returns valid
+snapshot; ✅ 0 console errors in browser; ⚠️ offline use deferred (fonts via CDN).
 
-### Phase 3 — Hardening & DX (ship after this) ⬜
+### Phase 3 — Hardening & DX (ship after this) ⬜ NEXT
 Status: not started.
 - [ ] Config schema validation with clear errors (zod over the config file)
 - [ ] Graceful downstream reconnect / surfacing of dead servers in `list_servers`
