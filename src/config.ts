@@ -1,46 +1,102 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { z } from "zod";
 
 /** A single downstream MCP server entry — same shape as the standard
- *  `mcpServers` block in Claude/Cursor configs, so users migrate by pasting. */
-export interface ServerSpec {
-  /** stdio: executable to spawn */
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  /** Streamable HTTP: remote endpoint (mutually exclusive with command) */
-  url?: string;
-}
+ *  `mcpServers` block in Claude/Cursor configs, so users migrate by pasting.
+ *  Exactly one of `command` (stdio) or `url` (Streamable HTTP) must be set. */
+const ServerSpecSchema = z
+  .object({
+    /** stdio: executable to spawn */
+    command: z.string().min(1).optional(),
+    args: z.array(z.string()).optional(),
+    env: z.record(z.string()).optional(),
+    /** Streamable HTTP: remote endpoint (mutually exclusive with command) */
+    url: z.string().url("must be a valid URL").optional(),
+  })
+  .strict()
+  .refine((s) => Boolean(s.command) !== Boolean(s.url), {
+    message: 'set exactly one of "command" (stdio) or "url" (HTTP)',
+  });
 
-export interface RouterConfig {
-  billing: {
-    mode: "api" | "subscription";
-    /** api mode */
-    pricePerMTok?: number;
+const BillingSchema = z
+  .object({
+    mode: z.enum(["api", "subscription"]).default("subscription"),
+    /** api mode: USD price per million tokens */
+    pricePerMTok: z.number().positive().optional(),
     /** subscription mode */
-    client?: string;
-    contextWindow?: number;
-  };
-  embedding: { backend: "local"; model: string };
-  retrieval: { topK: number; hybrid: boolean };
-  mcpServers: Record<string, ServerSpec>;
+    client: z.string().default("generic"),
+    contextWindow: z.number().int().positive().default(200000),
+  })
+  .strict()
+  .default({});
+
+const EmbeddingSchema = z
+  .object({
+    backend: z.literal("local").default("local"),
+    model: z.string().default("bge-small-en-v1.5"),
+  })
+  .strict()
+  .default({});
+
+const RetrievalSchema = z
+  .object({
+    topK: z.number().int().positive().default(6),
+    hybrid: z.boolean().default(true),
+  })
+  .strict()
+  .default({});
+
+const ConfigSchema = z
+  .object({
+    billing: BillingSchema,
+    embedding: EmbeddingSchema,
+    retrieval: RetrievalSchema,
+    mcpServers: z
+      .record(ServerSpecSchema)
+      .refine((m) => Object.keys(m).length > 0, {
+        message: 'is empty — add at least one server to route to',
+      }),
+  })
+  .strict();
+
+export type ServerSpec = z.infer<typeof ServerSpecSchema>;
+export type RouterConfig = z.infer<typeof ConfigSchema>;
+
+/** Turn a ZodError into a compact, path-prefixed, multi-line message. */
+function formatZodError(err: z.ZodError): string {
+  return err.issues
+    .map((issue) => {
+      const path = issue.path.join(".") || "(root)";
+      return `  • ${path}: ${issue.message}`;
+    })
+    .join("\n");
 }
 
-const DEFAULTS: Pick<RouterConfig, "billing" | "embedding" | "retrieval"> = {
-  billing: { mode: "subscription", client: "generic", contextWindow: 200000 },
-  embedding: { backend: "local", model: "bge-small-en-v1.5" },
-  retrieval: { topK: 6, hybrid: true },
-};
-
+/** Load, parse, and validate the router config. Throws with a readable,
+ *  field-by-field message on any schema or JSON error. */
 export function loadConfig(path: string): RouterConfig {
-  const raw = JSON.parse(readFileSync(resolve(path), "utf8")) as Partial<RouterConfig>;
-  if (!raw.mcpServers || Object.keys(raw.mcpServers).length === 0) {
-    throw new Error(`config ${path}: "mcpServers" is empty — nothing to route to`);
+  const resolved = resolve(path);
+
+  let text: string;
+  try {
+    text = readFileSync(resolved, "utf8");
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new Error(`config ${path}: cannot read file — ${reason}`);
   }
-  return {
-    billing: { ...DEFAULTS.billing, ...raw.billing },
-    embedding: { ...DEFAULTS.embedding, ...raw.embedding },
-    retrieval: { ...DEFAULTS.retrieval, ...raw.retrieval },
-    mcpServers: raw.mcpServers,
-  };
+
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new Error(`config ${path}: invalid JSON — ${reason}`);
+  }
+
+  const result = ConfigSchema.safeParse(json);
+  if (!result.success) {
+    throw new Error(`config ${path}: validation failed —\n${formatZodError(result.error)}`);
+  }
+  return result.data;
 }

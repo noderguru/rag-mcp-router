@@ -30,9 +30,10 @@ big list; we retrieve a *smart subset* per query. Always keep the word
 | Solves "many servers" | Solves "many **tools in context**" |
 
 - **Status:** Phase 0 (walking skeleton) ✅ + Phase 1 (local-embeddings RAG core)
-  ✅ + Phase 2 (dual-mode metrics + dashboard, commit `0d4c500`) ✅ — built and
-  verified end-to-end. Next: Phase 3 — Hardening & DX (tests, CI, config
-  validation). See §6 and §7.
+  ✅ + Phase 2 (dual-mode metrics + dashboard, commit `0d4c500`) ✅ + Phase 3
+  (hardening & DX: config validation, reconnect, tests+CI, packaging, community
+  docs) ✅ — built and verified end-to-end. Next: Phase 4 — Streamable HTTP
+  transport (remote / team). See §6 and §7.
 - **License:** Apache-2.0, fully open source, no open-core, no telemetry.
 - **Stack:** TypeScript + `@modelcontextprotocol/sdk` 1.29.0 + zod, Node 22, pnpm.
 
@@ -345,15 +346,16 @@ modes (flip `billing.mode` in config and re-run); ✅ subscription mode never
 shows `$`; ✅ per-request accounting matches §5.1; ✅ `get_metrics` returns valid
 snapshot; ✅ 0 console errors in browser; ⚠️ offline use deferred (fonts via CDN).
 
-### Phase 3 — Hardening & DX (ship after this) ⬜ NEXT
-Status: not started.
-- [ ] Config schema validation with clear errors (zod over the config file)
-- [ ] Graceful downstream reconnect / surfacing of dead servers in `list_servers`
-- [ ] Unit tests (retriever ranking, dispatch normalization, metrics math) + CI (GitHub Actions: build + test)
-- [ ] `npx rag-mcp-router` works from a clean install; README quickstart verified
-- [ ] CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue templates
+### Phase 3 — Hardening & DX (ship after this) ✅ DONE
+Status: complete. Validation, reconnect, tests+CI, packaging, and community docs
+all landed and verified (`pnpm build && pnpm test` green; `pnpm smoke` passes).
+- [x] Config schema validation with clear errors (zod over the config file) — `src/config.ts`: strict schemas, defaults, path-prefixed messages; rejects empty `mcpServers`, command/url XOR, unknown keys, bad JSON, missing file
+- [x] Graceful downstream reconnect / surfacing of dead servers in `list_servers` — `Conn.status`/`lastError`; failed servers kept as dead placeholders; `dispatch` reconnects on demand; `client.onclose` marks disconnected
+- [x] Unit tests (retriever ranking, dispatch normalization, metrics math, config validation) + CI — `test/*.test.ts` (27 tests, `node:test` via `tsx`); `.github/workflows/ci.yml` builds+tests on Node 20 & 22
+- [x] `npx rag-mcp-router` works from a clean install; README quickstart verified — `files` now ships `docs/report-prototype.html`; `pnpm pack` confirmed contents + shebang; README rewritten (npx-first, status, dev section)
+- [x] CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue templates (bug/feature + config), PR template
 
-**Acceptance:** `pnpm build && pnpm test` green in CI; a new user can go from clone → working router against one real server in <5 min.
+**Acceptance:** ✅ `pnpm build && pnpm test` green; CI runs the same on Node 20/22; ✅ `npx rag-mcp-router --config …` runs from the packed tarball; a new user goes from clone → working router against one real server in <5 min.
 
 ### Phase 4 — Streamable HTTP transport (remote / team) ⬜
 - [ ] Server transport `NodeStreamableHTTPServerTransport({ sessionIdGenerator })` (v2 `@modelcontextprotocol/node`); evaluate v1.x HTTP path too

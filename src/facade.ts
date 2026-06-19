@@ -66,11 +66,18 @@ export function createFacade(
     "list_servers",
     {
       title: "List connected MCP servers",
-      description: "Show every connected downstream server and how many tools it exposes.",
+      description:
+        "Show every configured downstream server, its connection status " +
+        "(connected/disconnected), how many tools it exposes, and the last error if any.",
       inputSchema: {},
     },
     async () => {
-      const summary = conns.map((c) => ({ server: c.name, tools: c.tools.length }));
+      const summary = conns.map((c) => ({
+        server: c.name,
+        status: c.status,
+        tools: c.tools.length,
+        ...(c.lastError ? { lastError: c.lastError } : {}),
+      }));
       return { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }] };
     },
   );

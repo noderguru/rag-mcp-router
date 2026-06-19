@@ -1,0 +1,45 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to file a report! Please fill in as much as you can.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, plus what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps. Include a redacted config snippet if relevant (remove secrets/tokens).
+      placeholder: |
+        1. config: ...
+        2. run: npx rag-mcp-router --config ...
+        3. call search_tools with ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: stderr output from the router (it logs to stderr). Redact any secrets.
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: rag-mcp-router version (or git commit) and how you run it (npx / clone).
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Node version (`node --version`), and your MCP client (Claude Code, Cursor, …).
+    validations:
+      required: true

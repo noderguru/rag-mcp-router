@@ -35,7 +35,7 @@ export interface Retriever {
  * identifiers contribute) plus the description and parameter names, which carry
  * most of the semantic signal about what the tool does.
  */
-function toDocument(hit: ToolHit): string {
+export function toDocument(hit: ToolHit): string {
   const props = hit.inputSchema?.properties;
   const params = props ? Object.keys(props) : [];
   const paramPart = params.length ? ` | params: ${params.join(", ")}` : "";
@@ -43,7 +43,7 @@ function toDocument(hit: ToolHit): string {
 }
 
 /** Fingerprint of the embedded corpus — model + every document. */
-function catalogHash(model: string, docs: string[]): string {
+export function catalogHash(model: string, docs: string[]): string {
   return createHash("sha256").update(model).update("\n").update(docs.join("\n")).digest("hex");
 }
 
@@ -102,7 +102,7 @@ class SemanticRetriever implements Retriever {
  * Fallback: naive keyword-overlap scoring. Same behavior as the original MVP
  * stub — used only when the embedding backend is unavailable.
  */
-class KeywordRetriever implements Retriever {
+export class KeywordRetriever implements Retriever {
   constructor(private readonly catalog: ToolHit[]) {}
 
   async search(query: string, k: number): Promise<ToolHit[]> {

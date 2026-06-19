@@ -9,6 +9,7 @@
   },
   "files": [
     "dist",
+    "docs/report-prototype.html",
     "rag-mcp.config.example.json",
     "README.md",
     "LICENSE"
@@ -17,7 +18,9 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "smoke": "node smoke-test.mjs"
   },
   "keywords": [
     "mcp",
@@ -38,6 +41,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "tsx": "^4.22.4",
     "typescript": "^5.6.0"
   },
   "pnpm": {

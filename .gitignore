@@ -8,3 +8,6 @@ dist/
 # local config may contain secrets in env blocks
 rag-mcp.config.json
 .rag-mcp
+
+# MCP browser tool scratch dir
+.playwright-mcp/
