@@ -29,8 +29,10 @@ big list; we retrieve a *smart subset* per query. Always keep the word
 | Client still sees 150 tools | Client sees 3 facade tools → then top-k relevant |
 | Solves "many servers" | Solves "many **tools in context**" |
 
-- **Status:** walking skeleton built and verified end-to-end. The RAG core is
-  still a stub. See §6 and §7.
+- **Status:** Phase 0 (walking skeleton) + Phase 1 (local-embeddings RAG core)
+  built and verified end-to-end; Phase 2 dashboard UI prototyped on mock data
+  (`docs/report-prototype.html`). Next: Phase 2 proper — wire real metrics
+  (exact formulas in §5.1) into that prototype. See §6 and §7.
 - **License:** Apache-2.0, fully open source, no open-core, no telemetry.
 - **Stack:** TypeScript + `@modelcontextprotocol/sdk` 1.29.0 + zod, Node 22, pnpm.
 
@@ -166,25 +168,98 @@ downstream servers.
 ## 5. The dual-mode metric (important — not yet implemented)
 
 The whole value framing changes depending on how the user pays. This was the
-user's sharp catch and must be honored in the metrics module:
+user's sharp catch and must be honored in the metrics module.
+
+### 5.1 Exact formulas (pin these down in `metrics.ts`)
+
+Notation. Let `T` = set of all downstream tools. For a tool `t`, `sch(t)` =
+token count of that tool's schema **exactly as the client receives it** in the
+MCP `tools/list` JSON (name + description + `inputSchema`). `facade` = token
+count of the 3 facade-tool schemas (`search_tools`/`call_tool`/`list_servers`),
+a constant.
+
+**Per request** `r` (the unit that matters — compute at this granularity, never
+on a session-wide union of surfaced tools):
 
 ```
-baseline = Σ tokens(all schemas of all downstream tools)   // life without the router
-actual   = tokens(3 facade tools) + tokens(schemas surfaced via search_tools)
-saved    = baseline − actual
+baseline_r  = Σ_{t∈T} sch(t)              // life without the router: ALL schemas, every request
+S_r         = tools surfaced via search_tools during request r   (deduped subset of T)
+actual_r    = facade + Σ_{t∈S_r} sch(t)   // with the router: 3 facade tools + only what was surfaced
+saved_r     = baseline_r − actual_r
+reduction_r = saved_r / baseline_r
 ```
 
-| Mode (`billing.mode`) | Headline shown to user |
+**Session** over `R` requests (aggregate by SUM, not by averaging ratios):
+
+```
+saved_session   = Σ_r saved_r
+baseline_sum    = Σ_r baseline_r          // = R · baseline_r when T is stable across the session
+reduction       = saved_session / baseline_sum     // the headline %  (guard R=0 / baseline=0)
+```
+
+⚠️ Do **not** define `actual` as `facade + Σ(union of all tools surfaced this
+session)` — that conflates per-request cost with the session and understates the
+win. The prototype dashboard does this only because its mock `surfaced` set is
+fixed; real accounting is per-request as above.
+
+### 5.2 Mode headlines
+
+Inputs are split into **measured** (from the running router) and **assumed**
+(defaults from config, optionally explored via the report's what-if sliders):
+
+- *Measured*: `sch(t)`, `facade`, `S_r` per request, `R`, per-tool call counts.
+- *Assumed (config defaults)*: `pricePerMTok` ← `billing.pricePerMTok`,
+  `contextWindow` ← `billing.contextWindow`. The report may slide these for
+  what-if, but they must **start** from config and never masquerade as measured.
+
+```
+# api mode
+$saved = (saved_session input tokens / 1e6) · pricePerMTok
+  ⚠️ caching caveat: if the client caches tool definitions, the effective rate is
+     the cache-read price (~10× cheaper). Default headline assumes UNCACHED (upper
+     bound) and must say so; optional billing.cachedInputPerMTok for the cached estimate.
+
+# subscription mode
+freed_per_req   = mean_r(saved_r)                 // or saved_session / R
+freed_pct_window = freed_per_req / contextWindow  // "% of window reclaimed per request"
+extra_requests  ≈ saved_session / mean_r(actual_r)   // "~N more router-sized requests within the freed budget" — ESTIMATE, label it
+cap_bypassed    = show ONLY if billing.client maps to a client with a HARD tool cap
+                  AND |T| > cap; message: "<|T|> tools behind 3 facade tools — <client> <cap>-tool cap bypassed"
+```
+
+**Verified client tool caps (June 2026 — confirm before relying):**
+
+| `billing.client` | Hard cap | Notes |
+|---|---|---|
+| `cursor` | **40** | Sends only the first 40 tools across ALL MCP servers to the model |
+| `vscode` / `copilot` | **128** | Hard cap at request time ("may not include more than 128 tools"); has auto-grouping "virtual tools" above a threshold |
+| `claude-code` | none (soft) | Bounded by context window; ships built-in **MCP Tool Search** (defers tool defs, loads on demand — same idea as us, but Claude-only) |
+| `codex` (OpenAI CLI) | none documented | Best-practice guidance only (context pollution) |
+
+So `cap_bypassed` fires for `cursor`/`copilot`; for `claude-code`/`codex` lead with
+the freed-context / accuracy framing instead (no hard cap to "bypass"). Sources: §9.
+
+| Mode (`billing.mode`) | Headline |
 |---|---|
-| `api` | "−78% tokens · saved $X" (saved × model price) |
-| `subscription` | "freed 52K context (26% of window) · tool-selection accuracy ↑ · +N requests before plan limit · Cursor 40-tool cap bypassed" |
+| `api` | "−`reduction`% tokens · saved $`$saved`" |
+| `subscription` | "freed `freed_per_req` (`freed_pct_window` of window) · +`extra_requests` requests in budget · `cursor_cap`" |
 
 Rationale: most developers are on **subscriptions** (Claude Max, Cursor Pro,
 Copilot), where "$ saved" is weak. For them the real value is freed context,
 better tool-selection accuracy, stretching usage/rate limits, and bypassing hard
-tool caps. Token counting via `tiktoken` (or Anthropic count-tokens for Claude).
-Output: a single-file `report.html` regenerated on a SessionEnd hook (the pattern
-that worked for token-optimizer), plus a live `get_metrics` tool.
+tool caps.
+
+### 5.3 Implementation notes
+
+- **Token counting:** `tiktoken` (cl100k/o200k) **locally by default** — offline,
+  no API key (fits the local-first principle). Optional exact mode via Anthropic
+  `count_tokens` for Claude (network, opt-in). Count `sch(t)` over the serialized
+  `tools/list` entry, not a hand-rolled string.
+- **Output:** a single self-contained `report.html` regenerated on a SessionEnd
+  hook (the token-optimizer pattern), plus a live `get_metrics` facade tool.
+- **Prototype already exists:** `docs/report-prototype.html` — editorial design,
+  dual-mode tabs, dark/light, what-if sliders (price/window only), measured-vs-
+  assumed split, sortable tool table. Phase 2 = wire real metrics into this shape.
 
 ## 6. Current state (verified)
 
@@ -193,9 +268,17 @@ that worked for token-optimizer), plus a live `get_metrics` tool.
   `@modelcontextprotocol/server-everything`):
   - client sees **only the 3 facade tools**, not the downstream's 13;
   - `search_tools('echo a message back')` surfaces `everything.echo`;
-  - `call_tool(everything, echo, {message})` proxies through → `Echo: router-works`.
-- Initial commit done on branch `main`. **NOT yet pushed to GitHub** (pending
-  user OK — pushing is an outward-facing publish action).
+  - `call_tool(everything, echo, {message})` proxies through → `Echo: router-works`;
+  - **semantic retrieval (Phase 1):** `search_tools('show me a small picture')`
+    returns `everything.get-tiny-image` on top despite zero keyword overlap;
+  - index persists to `.rag-mcp/index.json` and reloads without re-embedding.
+- **Dashboard UI prototype** (`docs/report-prototype.html`, mock data, verified in
+  browser): editorial design, Subscription/API tabs, dark/light toggle, what-if
+  sliders (price/window), measured-vs-assumed split, sortable+expandable tool
+  table, GitHub author link. Phase 2 wires real metrics into this shape.
+- Work since the initial commit (Phase 1 + dashboard prototype + this doc) is on
+  branch `main`, **uncommitted and NOT pushed** (pending user OK — pushing is an
+  outward-facing publish action).
 
 Run it yourself:
 ```bash
@@ -223,29 +306,35 @@ Status: complete (commit `999178d`). Verified end-to-end (§6).
 - [x] `index.ts` — stdio entrypoint, stderr-only logging
 - [x] `smoke-test.mjs` — end-to-end check passes
 
-### Phase 1 — RAG core (THE differentiator) ⬜ NEXT
-Status: not started. Replace the keyword stub with real semantic retrieval.
-- [ ] Add `fastembed` dep; lazy-load `bge-small-en-v1.5` (download once, cache)
-- [ ] `index/embed.ts` — embed a string / batch; expose `dimension`
-- [ ] `index/store.ts` — in-memory vectors + cosine; persist to `.rag-mcp/index.json`; load on boot
-- [ ] Tool → document: `"{server}.{name}: {description} | params: {param keys}"`
-- [ ] `retriever.ts` — replace stub: embed query → cosine → top-k full schemas
-- [ ] Index invalidation: rebuild when downstream tool set hash changes
-- [ ] First-run UX: model download progress to **stderr** (stdout is MCP channel)
-- [ ] Extend `smoke-test.mjs`: assert semantic hit (e.g. "send a message to a channel" → the right tool even without keyword overlap)
+### Phase 1 — RAG core (THE differentiator) ✅ DONE
+Status: complete. Keyword stub replaced with local-embeddings semantic retrieval.
+Verified end-to-end (`smoke-test.mjs` step [5]).
+- [x] Add `fastembed` dep (2.1.0); lazy-load `bge-small-en-v1.5` (download once, cache under `.rag-mcp/models`)
+- [x] `src/index/embed.ts` — `Embedder`: `embedDocuments` (passageEmbed) / `embedQuery` (queryEmbed); exposes `dimension`. Vectors coerced to plain `number[]` via `Array.from` so they survive JSON persistence (fastembed yields `Float32Array`, which serializes to an object). Creates `cacheDir` recursively (fastembed's own mkdir is non-recursive).
+- [x] `src/index/store.ts` — `VectorStore`: in-memory normalized vectors + cosine (dot); persist/load `.rag-mcp/index.json` with version + hash invalidation
+- [x] Tool → document: `"{server}.{name}: {description} | params: {param keys}"` (`toDocument` in `retriever.ts`)
+- [x] `retriever.ts` — `buildRetriever()` returns `SemanticRetriever` (embed query → cosine → top-k); `KeywordRetriever` kept as graceful fallback when the embedder can't init (offline/missing model). `search()` is now async.
+- [x] Index invalidation: `catalogHash(model, docs)` (sha256) — mismatch ⇒ re-embed
+- [x] First-run UX: download progress to **stderr** (verified: `progress` pkg defaults to stderr, fastembed only `console.warn`s)
+- [x] Extend `smoke-test.mjs`: step [5] asserts "show me a small picture" → `get-tiny-image` top (no keyword overlap → also proves semantic mode is active, not the keyword fallback)
+- [x] `package.json` `pnpm.onlyBuiltDependencies: [onnxruntime-node]` for clean installs
 
-**Acceptance:** with ~50+ downstream tools, `search_tools("<intent with no exact keyword>")` returns the correct tool in top-k; index persists and reloads without re-embedding; no network calls / no API key required.
+**Acceptance:** ✅ `search_tools("<intent with no exact keyword>")` returns the correct tool in top-k (e.g. "show me a small picture" → get-tiny-image @ 0.78); ✅ index persists and reloads without re-embedding (re-run logs "loaded persisted index"); ✅ no network calls / no API key at runtime once the model is cached.
 
-### Phase 2 — Dual-mode metrics + dashboard ⬜
-Status: not started. Implements §5.
-- [ ] Add `tiktoken` (or Anthropic count-tokens for Claude) for token counting
-- [ ] `metrics.ts` — track `baseline` (all schemas), `facadeCost`, `surfaced`; compute `saved`
-- [ ] Mode switch on `billing.mode`: `api` → `$ saved`; `subscription` → freed context (tokens + % window), est. extra requests, Cursor-40-cap flag
+### Phase 2 — Dual-mode metrics + dashboard ⬜ NEXT
+Status: not started. Implements §5 (exact formulas now in §5.1–§5.3). **Design
+already done** — wire real metrics into the existing prototype's shape.
+- [x] Dashboard UI prototype: `docs/report-prototype.html` (editorial design,
+  dual-mode tabs, dark/light, what-if sliders for price/window, measured-vs-
+  assumed split, sortable/expandable tool table). Mock data only.
+- [ ] Add `tiktoken` for local token counting (offline default); optional Anthropic `count_tokens` exact mode
+- [ ] `metrics.ts` — **per-request** accounting per §5.1: `baseline_r`, `facade`, `S_r`, `saved_r`; aggregate to session by sum. Guard R=0.
+- [ ] Mode switch on `billing.mode`: `api` → `$ saved` (note caching caveat §5.2); `subscription` → freed context (tokens + % window), est. extra requests, cap flag gated on `billing.client`
 - [ ] `get_metrics` facade tool (live read)
-- [ ] `report.ts` — single-file `report.html` written to `.rag-mcp/`
+- [ ] `report.ts` — render the prototype from live metrics → single-file `report.html` in `.rag-mcp/`. **Inline/subset the web fonts** for offline use (prototype currently pulls Google Fonts via CDN)
 - [ ] Regenerate report on SessionEnd (document the hook; provide a `--report` flag fallback)
 
-**Acceptance:** after a session, `report.html` shows correct numbers in BOTH modes (flip `billing.mode` in config and re-run); subscription mode never shows `$`.
+**Acceptance:** after a session, `report.html` shows correct numbers in BOTH modes (flip `billing.mode` in config and re-run); subscription mode never shows `$`; per-request accounting matches §5.1; opens offline (no CDN).
 
 ### Phase 3 — Hardening & DX (ship after this) ⬜
 Status: not started.
@@ -335,6 +424,12 @@ Market / landscape:
   https://writer.com/engineering/rag-mcp/ , https://eclipsesource.com/blogs/2026/01/22/mcp-context-overload/
 - Cursor 40-tool cap & overload fixes — https://www.lunar.dev/post/why-is-there-mcp-tool-overload-and-how-to-solve-it-for-your-ai-agents
 - Token optimization approaches — https://www.stackone.com/blog/mcp-token-optimization/
+
+Client tool caps (verified June 2026 — see §5.2 table):
+- Cursor 40-tool cap — https://forum.cursor.com/t/mcp-server-40-tool-limit-in-cursor-is-this-frustrating-your-workflow/81627 , https://github.com/cursor/cursor/issues/3369
+- VS Code / Copilot 128-tool hard cap (+ virtual tools) — https://github.com/microsoft/vscode/issues/290356 , https://code.visualstudio.com/docs/copilot/agents/agent-tools
+- Claude Code: no hard cap, built-in MCP Tool Search (defers tool defs) — https://code.claude.com/docs/en/mcp , https://www.atcyrus.com/stories/mcp-tool-search-claude-code-context-pollution-guide
+- Codex CLI: no documented numeric cap, best-practice guidance — https://developers.openai.com/codex/config-reference
 
 RAG tool-selection (the niche):
 - fintools-ai/rag-mcp (4⭐, abandoned — the gap) — https://github.com/fintools-ai/rag-mcp

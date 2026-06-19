@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>rag-mcp-router · session report</title>
+<link rel="icon" href="data:," />
+<script>
+  (function () {
+    var t = localStorage.getItem("ragmcp-theme");
+    if (t === "dark" || (!t && window.matchMedia("(prefers-color-scheme: dark)").matches))
+      document.documentElement.classList.add("dark");
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ============ editorial / magazine — warm paper + sharp orange ====== */
+  :root {
+    --bg: 40 36% 97.5%;
+    --fg: 24 12% 11%;
+    --muted: 30 7% 44%;
+    --rule: 30 9% 87%;
+    --card: 40 40% 99%;
+    --accent: 22 92% 51%;
+    --accent-2: 16 86% 46%;
+    --ok: 152 45% 38%;
+    --shadow: 28 30% 30%;
+  }
+  .dark {
+    --bg: 24 13% 6%;
+    --fg: 40 32% 95%;
+    --muted: 34 8% 60%;
+    --rule: 30 7% 17%;
+    --card: 26 13% 8.5%;
+    --accent: 24 95% 57%;
+    --accent-2: 20 90% 50%;
+    --ok: 152 48% 52%;
+    --shadow: 0 0% 0%;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: hsl(var(--bg));
+    color: hsl(var(--fg));
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    /* faint editorial grain */
+    background-image:
+      radial-gradient(hsl(var(--fg) / 0.022) 1px, transparent 1px);
+    background-size: 4px 4px;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 22px 28px 80px; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+  .tnum { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; }
+  .eyebrow {
+    font-family: "JetBrains Mono", monospace; text-transform: uppercase;
+    letter-spacing: 0.2em; font-size: 0.68rem; font-weight: 500;
+    color: hsl(var(--muted)); margin: 0;
+  }
+  .rule { height: 1px; background: hsl(var(--rule)); border: 0; margin: 0; }
+
+  /* ---------- topbar ---------- */
+  .topbar { display: flex; align-items: center; gap: 16px; padding-bottom: 18px; }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .glyph {
+    width: 30px; height: 30px; flex: none; border-radius: 8px;
+    background: linear-gradient(140deg, hsl(var(--accent)), hsl(var(--accent-2)));
+    display: grid; place-items: center; color: #fff;
+    box-shadow: 0 5px 16px -6px hsl(var(--accent) / 0.7);
+  }
+  .glyph svg { width: 17px; height: 17px; }
+  .brand b { font-weight: 600; font-size: 0.92rem; letter-spacing: -0.01em; }
+  .grow { flex: 1; }
+  .tabs { display: inline-flex; gap: 2px; border: 1px solid hsl(var(--rule)); border-radius: 9px; padding: 3px; }
+  .tab {
+    appearance: none; border: 0; background: transparent; cursor: pointer;
+    font-family: "JetBrains Mono", monospace; font-size: 0.72rem; letter-spacing: 0.03em;
+    text-transform: uppercase; padding: 6px 13px; border-radius: 6px;
+    color: hsl(var(--muted)); transition: all .15s;
+  }
+  .tab[aria-selected="true"] { background: hsl(var(--fg)); color: hsl(var(--bg)); }
+  .ghost {
+    width: 34px; height: 34px; display: grid; place-items: center; cursor: pointer;
+    border: 1px solid hsl(var(--rule)); border-radius: 9px; background: transparent; color: inherit;
+    transition: background .15s, border-color .15s;
+  }
+  .ghost:hover { background: hsl(var(--fg) / 0.05); }
+  .ghost:focus-visible, .tab:focus-visible, .author:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+  .author { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; color: hsl(var(--muted)); font-size: 0.82rem; font-weight: 500; padding: 6px 10px; border-radius: 8px; transition: color .15s, background .15s; }
+  .author:hover { color: hsl(var(--fg)); background: hsl(var(--fg) / 0.05); }
+  .author svg { opacity: 0.92; flex: none; }
+  @media (max-width: 560px) { .author span { display: none; } }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 40px 0 36px; }
+  .hero .eyebrow { margin-bottom: 26px; }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr); gap: 18px 56px; align-items: center; }
+  @media (max-width: 820px) { .hero-grid { grid-template-columns: 1fr; gap: 30px; } }
+  .hero-num {
+    display: block;
+    font-family: "Bricolage Grotesque", sans-serif; font-weight: 800;
+    font-size: clamp(4.8rem, 15vw, 9.5rem); line-height: 0.86; letter-spacing: -0.045em;
+    background: linear-gradient(132deg, hsl(var(--accent)) 8%, hsl(var(--accent-2)) 78%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    margin: 0;
+  }
+  .hero-cap {
+    display: block; margin-top: 14px;
+    font-family: "Bricolage Grotesque", sans-serif; font-weight: 500;
+    font-size: clamp(1.1rem, 2.4vw, 1.55rem); letter-spacing: -0.01em; color: hsl(var(--fg));
+  }
+  .dek {
+    max-width: 48ch; margin: 0 0 4px; font-size: 1.02rem; color: hsl(var(--muted));
+  }
+  .dek b { color: hsl(var(--fg)); font-weight: 600; }
+  .cap-note {
+    display: inline-flex; align-items: center; gap: 7px; margin-top: 18px;
+    font-family: "JetBrains Mono", monospace; font-size: 0.72rem; color: hsl(var(--ok));
+  }
+  .cap-note::before { content: "✓"; font-weight: 700; }
+
+  /* ---------- hero key figures ---------- */
+  .keyfig { margin-top: 18px; }
+  .kf { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 13px 0; border-top: 1px solid hsl(var(--rule)); }
+  .kf-l { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .kf .k { font-family: "JetBrains Mono", monospace; text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.66rem; color: hsl(var(--muted)); }
+  .kf .s { font-size: 0.78rem; color: hsl(var(--muted)); }
+  .kf .v { font-family: "Bricolage Grotesque", sans-serif; font-weight: 700; font-size: 1.7rem; letter-spacing: -0.025em; line-height: 1; white-space: nowrap; }
+
+  /* ---------- adjust / sliders ---------- */
+  .adjust { padding: 26px 0; }
+  .adjust .eyebrow { margin-bottom: 18px; }
+  .adjust-grid { display: grid; grid-template-columns: minmax(0, 360px) 1fr; gap: 24px 64px; }
+  @media (max-width: 720px) { .adjust-grid { grid-template-columns: 1fr; } }
+  .sliders { display: flex; flex-direction: column; gap: 16px; }
+  .measured .mrow { display: flex; justify-content: space-between; gap: 16px; padding: 11px 0; border-top: 1px solid hsl(var(--rule)); font-size: 0.85rem; }
+  .measured .mrow:first-child { border-top: 0; padding-top: 2px; }
+  .measured .mrow .k { color: hsl(var(--muted)); }
+  .measured .mrow .v { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .ctrl .row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; }
+  .ctrl .lab { font-size: 0.84rem; font-weight: 500; }
+  .ctrl .out { font-family: "JetBrains Mono", monospace; font-size: 0.82rem; font-weight: 600; color: hsl(var(--accent)); }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 2px; background: hsl(var(--rule)); outline: none; margin: 8px 0; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%; background: hsl(var(--accent)); border: 3px solid hsl(var(--bg)); box-shadow: 0 0 0 1px hsl(var(--accent)); transition: transform .12s; }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.25); }
+  input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: hsl(var(--accent)); border: 3px solid hsl(var(--bg)); }
+  .hint { font-size: 0.75rem; color: hsl(var(--muted)); margin-top: 18px; max-width: 70ch; }
+
+  /* ---------- sections ---------- */
+  section.block { padding: 34px 0 8px; }
+  .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 22px; }
+  .sec-no { font-family: "JetBrains Mono", monospace; font-size: 0.8rem; font-weight: 600; color: hsl(var(--accent)); }
+  .sec-head h2 { font-family: "Bricolage Grotesque", sans-serif; font-weight: 700; font-size: 1.5rem; letter-spacing: -0.02em; margin: 0; }
+  .sec-head .sub { font-size: 0.84rem; color: hsl(var(--muted)); margin-left: auto; }
+  @media (max-width: 640px) { .sec-head .sub { display: none; } }
+
+  /* ---------- bars ---------- */
+  .bar-row { margin-top: 20px; }
+  .bar-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.86rem; margin-bottom: 8px; }
+  .bar-head .k { color: hsl(var(--fg)); font-weight: 500; }
+  .bar-head .v { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .track { height: 14px; background: hsl(var(--fg) / 0.06); overflow: hidden; }
+  .fill { height: 100%; transition: width .7s cubic-bezier(.22,1,.36,1); }
+  .fill.base { background: repeating-linear-gradient(45deg, hsl(var(--muted) / 0.5), hsl(var(--muted) / 0.5) 6px, hsl(var(--muted) / 0.32) 6px, hsl(var(--muted) / 0.32) 12px); }
+  .fill.actual { background: linear-gradient(90deg, hsl(var(--accent)), hsl(var(--accent-2))); }
+  .delta { text-align: right; font-family: "JetBrains Mono", monospace; font-size: 0.78rem; color: hsl(var(--accent)); margin-top: 10px; }
+
+  /* ---------- server weight ---------- */
+  .srv { display: grid; grid-template-columns: 110px 1fr 64px; align-items: center; gap: 14px; padding: 11px 0; border-top: 1px solid hsl(var(--rule)); font-size: 0.85rem; }
+  .srv:first-child { border-top: 0; }
+  .srv .name { font-weight: 500; }
+  .srv .track { height: 7px; background: transparent; }
+  .srv .fill { background: hsl(var(--accent) / 0.85); }
+  .srv .num { text-align: right; font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; color: hsl(var(--muted)); }
+
+  /* ---------- tools table ---------- */
+  .tbl-tools { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .grow2 { flex: 1; }
+  .search { height: 34px; padding: 0 12px; border: 1px solid hsl(var(--rule)); background: hsl(var(--card)); color: inherit; font: inherit; font-size: 0.82rem; border-radius: 8px; min-width: 170px; }
+  .search:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 1px; }
+  .switch { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; font-size: 0.78rem; font-family: "JetBrains Mono", monospace; text-transform: uppercase; letter-spacing: 0.04em; color: hsl(var(--muted)); }
+  .switch .knob { width: 34px; height: 19px; border-radius: 999px; background: hsl(var(--fg) / 0.12); position: relative; transition: background .15s; flex: none; }
+  .switch .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: hsl(var(--bg)); transition: transform .16s; }
+  .switch[aria-checked="true"] .knob { background: hsl(var(--accent)); }
+  .switch[aria-checked="true"] .knob::after { transform: translateX(15px); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+  thead th { text-align: left; font-family: "JetBrains Mono", monospace; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.66rem; font-weight: 500; color: hsl(var(--muted)); padding: 11px 12px; border-bottom: 1px solid hsl(var(--fg)); cursor: pointer; user-select: none; white-space: nowrap; }
+  thead th.num, td.num { text-align: right; }
+  td.num, .surf-cell { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; }
+  thead th .arr { color: hsl(var(--accent)); }
+  tbody td { padding: 13px 12px; border-bottom: 1px solid hsl(var(--rule)); vertical-align: middle; }
+  tbody tr.main { cursor: pointer; transition: background .12s; }
+  tbody tr.main:hover { background: hsl(var(--accent) / 0.05); }
+  tbody tr.main td:first-child { box-shadow: inset 2px 0 0 transparent; transition: box-shadow .12s; }
+  tbody tr.main:hover td:first-child { box-shadow: inset 2px 0 0 hsl(var(--accent)); }
+  .tool { font-weight: 600; }
+  .srvtag { color: hsl(var(--muted)); font-family: "JetBrains Mono", monospace; font-size: 0.78rem; }
+  .chev { display: inline-block; width: 10px; transition: transform .15s; color: hsl(var(--muted)); margin-right: 9px; }
+  tr.open .chev { transform: rotate(90deg); color: hsl(var(--accent)); }
+  .pill { font-family: "JetBrains Mono", monospace; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 8px; border-radius: 999px; }
+  .pill.on { color: hsl(var(--ok)); background: hsl(var(--ok) / 0.12); }
+  .pill.off { color: hsl(var(--muted)); background: hsl(var(--fg) / 0.06); }
+  .detail td { padding: 0; background: hsl(var(--accent) / 0.04); }
+  .detail .inner { padding: 14px 16px 16px 33px; font-size: 0.8rem; color: hsl(var(--muted)); }
+  .detail code { font-family: "JetBrains Mono", monospace; font-size: 0.76rem; color: hsl(var(--fg)); background: hsl(var(--card)); padding: 2px 6px; border-radius: 5px; border: 1px solid hsl(var(--rule)); }
+  .params { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .params span { font-family: "JetBrains Mono", monospace; font-size: 0.7rem; padding: 2px 7px; border: 1px solid hsl(var(--rule)); border-radius: 5px; color: hsl(var(--fg)); }
+  .tcount { font-family: "JetBrains Mono", monospace; font-size: 0.72rem; color: hsl(var(--muted)); margin-top: 14px; }
+
+  footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid hsl(var(--rule)); font-family: "JetBrains Mono", monospace; font-size: 0.7rem; color: hsl(var(--muted)); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .footdot { width: 3px; height: 3px; border-radius: 50%; background: hsl(var(--muted) / 0.6); }
+  .hidden { display: none !important; }
+
+  /* ---------- load animation ---------- */
+  .reveal { opacity: 0; transform: translateY(16px); }
+  body.loaded .reveal { animation: rise .8s cubic-bezier(.22,1,.36,1) forwards; animation-delay: var(--d, 0s); }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; } .fill { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="glyph" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.3"/><circle cx="19" cy="5.5" r="2.3"/><circle cx="19" cy="18.5" r="2.3"/><path d="M7 11l10-4.7M7 13l10 4.7"/></svg>
+      </span>
+      <b>rag-mcp-router</b>
+    </div>
+    <span class="grow"></span>
+    <a class="author" href="https://github.com/noderguru" target="_blank" rel="noopener" title="noderguru on GitHub">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+      <span>noderguru</span>
+    </a>
+    <div class="tabs" role="tablist" aria-label="Billing mode">
+      <button class="tab" id="tab-sub" role="tab" aria-selected="true">Subscription</button>
+      <button class="tab" id="tab-api" role="tab" aria-selected="false">API</button>
+    </div>
+    <button class="ghost" id="theme" title="Toggle theme" aria-label="Toggle theme">
+      <svg id="ic-sun" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      <svg id="ic-moon" class="hidden" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+  </div>
+  <hr class="rule" />
+
+  <section class="hero reveal" style="--d:.04s">
+    <p class="eyebrow">Session report · <span id="when">today, 14:32</span></p>
+    <div class="hero-grid">
+      <div class="hero-left">
+        <span class="hero-num" id="hero-num">−60%</span>
+        <span class="hero-cap" id="hero-cap">context freed per request</span>
+      </div>
+      <div class="hero-right">
+        <p class="dek" id="dek"></p>
+        <div class="keyfig" id="keyfig"></div>
+        <span class="cap-note" id="cap-note">Cursor 40-tool cap bypassed — 33 tools behind 3 facade tools</span>
+      </div>
+    </div>
+  </section>
+  <hr class="rule" />
+
+  <section class="adjust reveal" style="--d:.18s">
+    <div class="adjust-grid">
+      <div>
+        <p class="eyebrow">Assumptions — tune live</p>
+        <div class="sliders">
+          <div class="ctrl" id="ctrl-price">
+            <div class="row"><span class="lab">Input price</span><span class="out" id="out-price">$3.00 / Mtok</span></div>
+            <input type="range" id="sl-price" min="25" max="1500" step="25" value="300" />
+          </div>
+          <div class="ctrl" id="ctrl-window">
+            <div class="row"><span class="lab">Context window</span><span class="out" id="out-window">200K tokens</span></div>
+            <input type="range" id="sl-window" min="32" max="1000" step="8" value="200" />
+          </div>
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow">Measured this session</p>
+        <div class="measured" id="measured"></div>
+      </div>
+    </div>
+    <p class="hint" id="hint"></p>
+  </section>
+
+  <hr class="rule" />
+  <section class="block reveal" style="--d:.06s">
+    <div class="sec-head"><span class="sec-no">01</span><h2>Context per request</h2><span class="sub">tokens of tool schemas before the agent acts</span></div>
+    <div class="bar-row">
+      <div class="bar-head"><span class="k">Baseline — all <span id="b-tools">0</span> tools</span><span class="v" id="b-base">0</span></div>
+      <div class="track"><div class="fill base" style="width:100%"></div></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-head"><span class="k">With router — 3 facade + <span id="b-surf">0</span> surfaced</span><span class="v" id="b-act">0</span></div>
+      <div class="track"><div class="fill actual" id="fill-act" style="width:20%"></div></div>
+    </div>
+    <div class="delta" id="delta"></div>
+  </section>
+
+  <hr class="rule" />
+  <section class="block reveal" style="--d:.06s">
+    <div class="sec-head"><span class="sec-no">02</span><h2>Where the budget goes</h2><span class="sub">baseline schema tokens by server</span></div>
+    <div id="srv-list"></div>
+  </section>
+
+  <hr class="rule" />
+  <section class="block reveal" style="--d:.06s">
+    <div class="sec-head"><span class="sec-no">03</span><h2>Tools</h2><span class="sub">click a row for the embedded document</span></div>
+    <div class="tbl-tools">
+      <span class="grow2"></span>
+      <input class="search" id="search" type="search" placeholder="Filter tools…" />
+      <div class="switch" id="sw-surfaced" role="switch" aria-checked="false" tabindex="0"><span class="knob"></span><span>Surfaced only</span></div>
+    </div>
+    <table>
+      <thead><tr>
+        <th data-key="name">Tool <span class="arr"></span></th>
+        <th data-key="server">Server <span class="arr"></span></th>
+        <th class="num" data-key="tokens">Tokens <span class="arr"></span></th>
+        <th class="num" data-key="calls">Calls <span class="arr"></span></th>
+        <th data-key="surfaced">Surfaced <span class="arr"></span></th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="tcount" id="tcount"></div>
+  </section>
+
+  <footer>
+    <span>rag-mcp-router v0.1.0</span><span class="footdot"></span>
+    <span>local-embeddings RAG · bge-small-en-v1.5</span><span class="footdot"></span>
+    <span>open source · no telemetry</span>
+  </footer>
+</div>
+
+<script>
+/* ===== mock data — stand-in for metrics.ts ===== */
+const FACADE_TOKENS = 612;
+const TOOLS = [
+  ["github","create_issue",436,true,2,["title","body","labels","assignees"]],
+  ["github","get_file_contents",372,true,3,["owner","repo","path","ref"]],
+  ["github","create_pull_request",568,true,1,["title","head","base","body","draft"]],
+  ["github","list_issues",394,false,0,["owner","repo","state","labels"]],
+  ["github","merge_pull_request",358,false,0,["owner","repo","pull_number","merge_method"]],
+  ["github","search_code",344,false,0,["q","sort","order"]],
+  ["github","create_branch",286,false,0,["owner","repo","branch","from"]],
+  ["github","list_commits",352,false,0,["owner","repo","sha","path"]],
+  ["github","add_issue_comment",312,false,0,["owner","repo","issue_number","body"]],
+  ["github","fork_repository",268,false,0,["owner","repo","organization"]],
+  ["github","get_pull_request_files",336,false,0,["owner","repo","pull_number"]],
+  ["github","update_issue",402,false,0,["owner","repo","issue_number","state","labels"]],
+  ["postgres","query",548,true,4,["sql","params"]],
+  ["postgres","list_tables",236,true,1,["schema"]],
+  ["postgres","describe_table",318,false,0,["table","schema"]],
+  ["postgres","explain_query",372,false,0,["sql","analyze"]],
+  ["slack","send_message",468,true,3,["channel","text","thread_ts","blocks"]],
+  ["slack","list_channels",302,false,0,["types","limit","cursor"]],
+  ["slack","upload_file",436,false,0,["channels","file","title","comment"]],
+  ["slack","get_thread_replies",358,false,0,["channel","ts","limit"]],
+  ["slack","set_status",276,false,0,["text","emoji","expiration"]],
+  ["slack","search_messages",384,false,0,["query","sort","count"]],
+  ["figma","export_image",492,true,2,["node_id","format","scale"]],
+  ["figma","get_node",424,true,1,["file_key","node_id"]],
+  ["figma","get_file",564,false,0,["file_key","depth","geometry"]],
+  ["figma","list_components",372,false,0,["file_key"]],
+  ["figma","get_comments",318,false,0,["file_key"]],
+  ["filesystem","read_file",292,true,5,["path","encoding"]],
+  ["filesystem","write_file",348,true,2,["path","content","mode"]],
+  ["filesystem","list_directory",262,false,0,["path","recursive"]],
+  ["filesystem","search_files",372,false,0,["path","pattern","glob"]],
+  ["filesystem","move_file",294,false,0,["source","destination"]],
+  ["filesystem","delete_file",256,false,0,["path","recursive"]],
+].map(t => ({ server:t[0], name:t[1], tokens:t[2], surfaced:t[3], calls:t[4], params:t[5] }));
+
+const state = {
+  mode: "subscription", pricePerMTok: 3.0, windowK: 200, requests: 40,
+  sort: { key: "tokens", dir: "desc" }, filter: "", surfacedOnly: false, expanded: new Set(),
+  firstPaint: true,
+};
+
+function compute() {
+  const baseline = TOOLS.reduce((s,t)=>s+t.tokens, 0);
+  const surfaced = TOOLS.filter(t=>t.surfaced);
+  const surfacedTokens = surfaced.reduce((s,t)=>s+t.tokens, 0);
+  const actual = FACADE_TOKENS + surfacedTokens;
+  const savedPerReq = baseline - actual;
+  const pct = savedPerReq / baseline;
+  const sessionSaved = savedPerReq * state.requests;
+  const window = state.windowK * 1000;
+  return { baseline, actual, surfacedTokens, savedPerReq, pct,
+    nTools: TOOLS.length, nSurfaced: surfaced.length, sessionSaved,
+    dollars: sessionSaved / 1e6 * state.pricePerMTok,
+    freedPctWindow: savedPerReq / window,
+    extraRequests: Math.floor(sessionSaved / actual) };
+}
+const fmt = n => Math.round(n).toLocaleString("en-US");
+const fmtK = n => n >= 10000 ? (n/1000).toFixed(n>=100000?0:1).replace(/\.0$/,"")+"K" : fmt(n);
+const pctStr = p => (p*100).toFixed(p*100>=10?0:1) + "%";
+
+function animateNum(el, to, render, dur=900) {
+  const t0 = performance.now();
+  function step(now) {
+    const k = Math.min(1, (now - t0) / dur);
+    const e = 1 - Math.pow(1 - k, 3);
+    el.textContent = render(to * e);
+    if (k < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+function renderHeroStats(c) {
+  const hero = document.getElementById("hero-num");
+  if (state.firstPaint) animateNum(hero, c.pct*100, v => "−" + Math.round(v) + "%");
+  else hero.textContent = "−" + pctStr(c.pct);
+
+  document.getElementById("cap-note").classList.toggle("hidden", state.mode !== "subscription");
+
+  let dek, stats;
+  if (state.mode === "subscription") {
+    dek = `This session the router surfaced <b>${c.nSurfaced} of ${c.nTools}</b> tools on demand — each request carried <b>${fmt(c.actual)}</b> tokens of tool schemas instead of <b>${fmt(c.baseline)}</b>, leaving more of the window for actual work.`;
+    stats = [
+      { k:"Freed / request", v:fmtK(c.savedPerReq), s:"tokens of "+fmtK(c.baseline) },
+      { k:"Share of window", v:pctStr(c.freedPctWindow), s:fmtK(state.windowK*1000)+"-token window" },
+      { k:"Extra requests", v:"+"+fmt(c.extraRequests), s:"within the same budget" },
+    ];
+  } else {
+    dek = `Across <b>${state.requests}</b> requests this session the router cut tool-schema tokens by <b>${pctStr(c.pct)}</b>, saving <b>${fmtK(c.sessionSaved)}</b> tokens — about <b>$${c.dollars.toFixed(2)}</b> at $${state.pricePerMTok.toFixed(2)}/Mtok input.`;
+    stats = [
+      { k:"Saved this session", v:"$"+c.dollars.toFixed(2), s:fmtK(c.sessionSaved)+" tokens" },
+      { k:"Baseline / request", v:fmtK(c.baseline), s:"all "+c.nTools+" schemas" },
+      { k:"With router / request", v:fmtK(c.actual), s:"3 facade + "+c.nSurfaced+" surfaced" },
+    ];
+  }
+  document.getElementById("dek").innerHTML = dek;
+  document.getElementById("keyfig").innerHTML = stats.map(x => `
+    <div class="kf"><span class="kf-l"><span class="k">${x.k}</span><span class="s">${x.s}</span></span><span class="v">${x.v}</span></div>`).join("");
+}
+
+function renderBars(c) {
+  document.getElementById("b-tools").textContent = c.nTools;
+  document.getElementById("b-surf").textContent = c.nSurfaced;
+  document.getElementById("b-base").textContent = fmt(c.baseline) + " tok";
+  document.getElementById("b-act").textContent = fmt(c.actual) + " tok";
+  document.getElementById("fill-act").style.width = Math.max(3, c.actual / c.baseline * 100) + "%";
+  document.getElementById("delta").textContent = `− ${fmt(c.savedPerReq)} tokens  (−${pctStr(c.pct)})`;
+
+  const byServer = {};
+  for (const t of TOOLS) byServer[t.server] = (byServer[t.server]||0) + t.tokens;
+  const rows = Object.entries(byServer).sort((a,b)=>b[1]-a[1]);
+  const max = rows[0][1];
+  document.getElementById("srv-list").innerHTML = rows.map(([s,v]) => `
+    <div class="srv"><span class="name">${s}</span>
+      <span class="track"><span class="fill" style="width:${v/max*100}%"></span></span>
+      <span class="num">${fmt(v)}</span></div>`).join("");
+}
+
+function renderControls() {
+  document.getElementById("ctrl-price").classList.toggle("hidden", state.mode !== "api");
+  document.getElementById("ctrl-window").classList.toggle("hidden", state.mode !== "subscription");
+  document.getElementById("out-price").textContent = "$" + state.pricePerMTok.toFixed(2) + " / Mtok";
+  document.getElementById("out-window").textContent = state.windowK + "K tokens";
+  document.getElementById("hint").textContent = state.mode === "api"
+    ? "Dollar figures = saved tokens × input price. Counted locally with a tiktoken-class tokenizer — nothing leaves your machine."
+    : "Estimates only — counted locally with a tiktoken-class tokenizer. No data leaves your machine.";
+}
+
+function renderTable() {
+  const { key, dir } = state.sort;
+  const q = state.filter.trim().toLowerCase();
+  let rows = TOOLS.filter(t => (!state.surfacedOnly || t.surfaced) &&
+    (!q || t.name.toLowerCase().includes(q) || t.server.toLowerCase().includes(q)));
+  rows.sort((a,b) => {
+    let av=a[key], bv=b[key];
+    if (typeof av === "boolean") { av = av?1:0; bv = bv?1:0; }
+    if (typeof av === "string") return dir==="asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+    return dir==="asc" ? av-bv : bv-av;
+  });
+  document.getElementById("tbody").innerHTML = rows.map(t => {
+    const id = t.server+"."+t.name, open = state.expanded.has(id);
+    const pill = t.surfaced ? `<span class="pill on">surfaced</span>` : `<span class="pill off">dormant</span>`;
+    const detail = open ? `<tr class="detail"><td colspan="5"><div class="inner">
+        Document embedded for retrieval:
+        <div style="margin-top:6px"><code>${t.server}.${t.name}: ${t.params.length} params</code></div>
+        <div class="params">${t.params.map(p=>`<span>${p}</span>`).join("")}</div>
+        <div style="margin-top:9px">Schema cost <code>${t.tokens} tok</code> · calls this session <code>${t.calls}</code></div>
+      </div></td></tr>` : "";
+    return `<tr class="main ${open?'open':''}" data-id="${id}">
+        <td><span class="chev">▸</span><span class="tool">${t.name}</span></td>
+        <td><span class="srvtag">${t.server}</span></td>
+        <td class="num">${fmt(t.tokens)}</td>
+        <td class="num">${t.calls || "·"}</td>
+        <td class="surf-cell">${pill}</td>
+      </tr>${detail}`;
+  }).join("");
+  document.querySelectorAll("thead th").forEach(th => {
+    const sorted = th.dataset.key === key;
+    th.querySelector(".arr").textContent = sorted ? (dir==="asc"?"↑":"↓") : "";
+  });
+  document.getElementById("tcount").textContent =
+    `${rows.length} / ${TOOLS.length} tools shown · ${TOOLS.filter(t=>t.surfaced).length} surfaced this session`;
+}
+
+function renderMeasured(c) {
+  const rows = [
+    { k: "Requests this session", v: fmt(state.requests) },
+    { k: "Tools surfaced", v: c.nSurfaced + " / " + c.nTools },
+    { k: "Facade overhead", v: fmt(FACADE_TOKENS) + " tok" },
+  ];
+  document.getElementById("measured").innerHTML = rows.map(r =>
+    `<div class="mrow"><span class="k">${r.k}</span><span class="v">${r.v}</span></div>`).join("");
+}
+
+function renderAll() {
+  const c = compute();
+  renderHeroStats(c); renderBars(c); renderControls(); renderMeasured(c); renderTable();
+  state.firstPaint = false;
+}
+
+/* ===== events ===== */
+function setTheme(dark) {
+  document.documentElement.classList.toggle("dark", dark);
+  localStorage.setItem("ragmcp-theme", dark ? "dark" : "light");
+  document.getElementById("ic-sun").classList.toggle("hidden", dark);
+  document.getElementById("ic-moon").classList.toggle("hidden", !dark);
+}
+setTheme(document.documentElement.classList.contains("dark"));
+document.getElementById("theme").addEventListener("click", () =>
+  setTheme(!document.documentElement.classList.contains("dark")));
+
+function selectMode(mode) {
+  state.mode = mode;
+  document.getElementById("tab-sub").setAttribute("aria-selected", mode==="subscription");
+  document.getElementById("tab-api").setAttribute("aria-selected", mode==="api");
+  renderAll();
+}
+document.getElementById("tab-sub").addEventListener("click", ()=>selectMode("subscription"));
+document.getElementById("tab-api").addEventListener("click", ()=>selectMode("api"));
+document.getElementById("sl-price").addEventListener("input", e => { state.pricePerMTok = e.target.value/100; const c=compute(); renderHeroStats(c); renderControls(); });
+document.getElementById("sl-window").addEventListener("input", e => { state.windowK = +e.target.value; const c=compute(); renderHeroStats(c); renderControls(); });
+document.getElementById("search").addEventListener("input", e => { state.filter = e.target.value; renderTable(); });
+const sw = document.getElementById("sw-surfaced");
+function toggleSurfaced(){ state.surfacedOnly = !state.surfacedOnly; sw.setAttribute("aria-checked", state.surfacedOnly); renderTable(); }
+sw.addEventListener("click", toggleSurfaced);
+sw.addEventListener("keydown", e => { if (e.key===" "||e.key==="Enter"){ e.preventDefault(); toggleSurfaced(); }});
+document.querySelectorAll("thead th").forEach(th => th.addEventListener("click", () => {
+  const key = th.dataset.key;
+  if (state.sort.key === key) state.sort.dir = state.sort.dir==="asc" ? "desc" : "asc";
+  else state.sort = { key, dir: (key==="name"||key==="server") ? "asc" : "desc" };
+  renderTable();
+}));
+document.getElementById("tbody").addEventListener("click", e => {
+  const tr = e.target.closest("tr.main"); if (!tr) return;
+  const id = tr.dataset.id;
+  state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id);
+  renderTable();
+});
+
+renderAll();
+requestAnimationFrame(() => document.body.classList.add("loaded"));
+</script>
+</body>
+</html>

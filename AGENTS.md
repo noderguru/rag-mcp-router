@@ -16,14 +16,15 @@ orchestrator, never a plain "aggregator" (that category is saturated — the RAG
 tool-selection layer is the differentiator). It works with **any MCP-capable
 harness** (Claude Code, Cursor, Cline, OpenCode, Kimi Code, Xiaomi MiMo, etc.),
 not just Claude Code/Cursor — the model vendor is irrelevant. Status: **walking
-skeleton built and verified end-to-end; the RAG core is still a keyword stub**
+skeleton + local-embeddings RAG core built and verified end-to-end**
 (see `HANDOFF.md` §6–§7, plan in §7).
 
 ## Immediate next task
 
-Replace the keyword stub in `src/retriever.ts` with the **local-embeddings RAG
-core** (fastembed / bge-small + cosine, persisted index). That is the product's
-core differentiator. Then dual-mode metrics + HTML dashboard (`HANDOFF.md` §5).
+Phase 1 (local-embeddings RAG core) is **done and verified** — `src/retriever.ts`
+now does semantic retrieval (fastembed / bge-small + cosine, persisted index),
+with a keyword fallback. Next up is **Phase 2: dual-mode metrics + HTML
+dashboard** (`HANDOFF.md` §5 and §7 Phase 2).
 
 ## Hard rules
 
