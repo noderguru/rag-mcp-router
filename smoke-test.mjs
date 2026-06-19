@@ -30,6 +30,20 @@ const echoed = await client.callTool({
 });
 console.log("[4] call_tool(echo) ->", echoed.content[0].text);
 
+// 5) Semantic retrieval — a query with NO keyword overlap with the tool's text
+// ("small picture" vs "Returns a tiny MCP logo image") must still surface
+// get-tiny-image at the top. A keyword scorer would find no overlap and fall
+// back to the first tool (echo), so this also proves the RAG core is active.
+const sem = await client.callTool({
+  name: "search_tools",
+  arguments: { intent: "show me a small picture", k: 3 },
+});
+const semHits = JSON.parse(sem.content[0].text);
+console.log("[5] search_tools('show me a small picture') ->", semHits.map((h) => `${h.server}.${h.name}`).join(", "));
+if (semHits[0]?.name !== "get-tiny-image") {
+  throw new Error(`semantic retrieval failed: expected get-tiny-image on top, got ${semHits[0]?.name}`);
+}
+
 await client.close();
-console.log("\n✅ end-to-end chain OK: client -> router -> downstream\n");
+console.log("\n✅ end-to-end chain OK: client -> router -> downstream (semantic retrieval verified)\n");
 process.exit(0);

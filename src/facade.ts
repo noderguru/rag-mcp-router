@@ -3,16 +3,15 @@ import { z } from "zod";
 import type { RouterConfig } from "./config.js";
 import type { Conn } from "./downstream.js";
 import { dispatch } from "./dispatch.js";
-import { buildCatalog, search } from "./retriever.js";
+import type { Retriever } from "./retriever.js";
 
 /**
  * The MCP server the *client* sees. It exposes only three facade tools instead
  * of the full (possibly 100+) downstream tool set, keeping the client's context
  * tiny. The agent calls `search_tools` to surface what it needs, then `call_tool`.
  */
-export function createFacade(conns: Conn[], cfg: RouterConfig): McpServer {
+export function createFacade(conns: Conn[], cfg: RouterConfig, retriever: Retriever): McpServer {
   const server = new McpServer({ name: "rag-mcp-router", version: "0.1.0" });
-  const catalog = buildCatalog(conns);
 
   server.registerTool(
     "search_tools",
@@ -28,7 +27,7 @@ export function createFacade(conns: Conn[], cfg: RouterConfig): McpServer {
       },
     },
     async ({ intent, k }) => {
-      const hits = search(catalog, intent, k ?? cfg.retrieval.topK);
+      const hits = await retriever.search(intent, k ?? cfg.retrieval.topK);
       return { content: [{ type: "text", text: JSON.stringify(hits, null, 2) }] };
     },
   );
