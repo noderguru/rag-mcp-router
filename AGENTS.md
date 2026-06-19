@@ -7,12 +7,17 @@ of the code, and the roadmap.
 
 ## One-paragraph what-this-is
 
-`rag-mcp-router` is a **fully open-source (Apache-2.0) RAG router for MCP**. It
-fronts all of a user's MCP servers and exposes only the *relevant* tools per
-query, instead of dumping 100+ tool definitions into the agent's context. The
-client sees only three facade tools — `search_tools`, `call_tool`,
-`list_servers`. Status: **walking skeleton built and verified end-to-end; the
-RAG core is still a keyword stub** (see `HANDOFF.md` §6–§7).
+`rag-mcp-router` is a **fully open-source (Apache-2.0) RAG orchestrator for MCP**.
+It fronts all of a user's MCP servers (orchestrator topology) and exposes only
+the *relevant* tools per query, instead of dumping 100+ tool definitions into the
+agent's context. The client sees only three facade tools — `search_tools`,
+`call_tool`, `list_servers`. **Positioning:** describe it as a *RAG / semantic*
+orchestrator, never a plain "aggregator" (that category is saturated — the RAG
+tool-selection layer is the differentiator). It works with **any MCP-capable
+harness** (Claude Code, Cursor, Cline, OpenCode, Kimi Code, Xiaomi MiMo, etc.),
+not just Claude Code/Cursor — the model vendor is irrelevant. Status: **walking
+skeleton built and verified end-to-end; the RAG core is still a keyword stub**
+(see `HANDOFF.md` §6–§7, plan in §7).
 
 ## Immediate next task
 

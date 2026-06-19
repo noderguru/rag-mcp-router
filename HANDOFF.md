@@ -9,10 +9,25 @@
 
 ## 0. TL;DR
 
-We are building **`rag-mcp-router`**: an open-source RAG router for the Model
-Context Protocol (MCP). It sits in front of *all* of a user's MCP servers and
-exposes only the **relevant** tools per query, instead of dumping every tool
-definition (often 100+) into the agent's context on every request.
+We are building **`rag-mcp-router`**: an open-source **RAG orchestrator for the
+Model Context Protocol (MCP)**. It sits in front of *all* of a user's MCP servers
+(orchestrator topology: one MCP server to the client, an MCP client to N
+downstream servers) and exposes only the **relevant** tools per query, instead of
+dumping every tool definition (often 100+) into the agent's context on every
+request.
+
+**Positioning — say this, not "aggregator".** Topologically we are an
+orchestrator/gateway, BUT the gateway/aggregator category is saturated (MetaMCP,
+IBM ContextForge, Kong, 17+ tools). Our differentiator is the **RAG
+tool-selection layer**: a plain aggregator merges *all* downstream tools into one
+big list; we retrieve a *smart subset* per query. Always keep the word
+"RAG" / "semantic" in how we describe this, or we blur into the crowd.
+
+| Plain orchestrator / aggregator | This project (RAG orchestrator) |
+|---|---|
+| Merges **all** tools of all servers into one list | Returns a **smart subset** per query |
+| Client still sees 150 tools | Client sees 3 facade tools → then top-k relevant |
+| Solves "many servers" | Solves "many **tools in context**" |
 
 - **Status:** walking skeleton built and verified end-to-end. The RAG core is
   still a stub. See §6 and §7.
@@ -55,6 +70,35 @@ Anthropic partially validated the approach: Claude's native tool-search loads
 only relevant tools when preloaded tools exceed ~10% of the window, cutting
 token use by up to **95%**. We make that universal for *any* MCP client and *any*
 set of servers.
+
+## 2b. Compatibility — target is ANY MCP-capable harness, not just Claude Code/Cursor
+
+Core principle: **the router is a standard MCP server; it plugs into the *client*
+(the coding harness), never into the model.** The model never speaks MCP directly
+— MCP is a client↔server protocol. So **the model vendor is irrelevant**: if a
+tool can act as an MCP client, the router works with it unchanged (stdio today,
+Streamable HTTP later).
+
+Most new vendor coding tools converge on the same pattern: "bring our model to
+Claude Code / Cursor / Cline / OpenCode / Windsurf…". The router attaches to that
+harness, so it covers the whole class — dozens of harnesses, not two.
+
+Verified June 2026:
+
+| Tool | Is it an MCP client? | Works with router |
+|---|---|---|
+| **Kimi Code CLI** (Moonshot) | ✅ own CLI with MCP | ✅ yes |
+| **Xiaomi MiMo Code** | ✅ own agentic CLI, MCP stdio tools; auto-imports MCP servers from Claude Code config | ✅ yes |
+| **Z.ai GLM (devpack)** | ⤴️ a model plan applied to Claude Code / Cline / OpenCode | ✅ via the harness |
+| **MiniMax MMX-CLI** | ❌ intentionally "MCP-free" (exposes shell commands; runs as a skill inside Claude Code/Cursor) | ⚠️ not into mmx-cli directly; ✅ when the MiniMax model runs inside Claude Code/Cursor |
+| Claude Code, Cursor, Cline, OpenCode, Windsurf, Cherry Studio, Qwen Code, CodeBuddy, OpenClaw, … | ✅ MCP clients | ✅ yes |
+
+**Implication for value:** smaller/cheaper models suffer *more* from tool overload
+and often have smaller context windows, so "surface only the 8 relevant tools"
+helps them *more* than it helps frontier models. Our addressable market is the
+entire MCP-harness ecosystem.
+
+Sources: Kimi https://www.kimi.com/code/docs/en/ · MiMo https://mimo.mi.com/docs/en-US/integration/claudecode , https://github.com/KoinaAI/MiMo-CLI · Z.ai https://docs.z.ai/devpack/overview · MiniMax MMX-CLI https://www.opensourceforu.com/2026/04/minimax-open-sources-mmx-cli-for-ai-agent-workflows/
 
 ## 3. Locked decisions (do not relitigate without the user)
 
@@ -161,26 +205,88 @@ node smoke-test.mjs                       # end-to-end check
 node dist/index.js --config rag-mcp.config.json
 ```
 
-## 7. Roadmap (build order)
+## 7. Detailed implementation plan (track progress here)
 
-**Next (completes the MVP differentiator):**
-1. **RAG core** — replace the keyword stub in `src/retriever.ts` with local
-   embeddings (fastembed / bge-small) + cosine similarity; persist the index to
-   `.rag-mcp/index.json`; embed each tool as
-   `"{server}.{name}: {description} | params: {keys}"`.
-2. **Dual-mode metrics** (§5) + `get_metrics` tool + single-file HTML dashboard
-   on SessionEnd.
+> **How to use this:** check off `[x]` each task as it lands; keep the "Status"
+> line of each phase current. Each phase has **acceptance criteria** — don't mark
+> a phase done until they pass. Phases are ordered by dependency. Phases 1–2 are
+> the MVP that proves the differentiator; ship/announce after Phase 3.
 
-**Later ("Потом") — and how each maps to real SDK API:**
-| Feature | SDK hook |
-|---|---|
-| Streamable HTTP (remote/team) | server side `NodeStreamableHTTPServerTransport({ sessionIdGenerator })` (v2 `@modelcontextprotocol/node`) |
-| Live re-index of downstream | client `listChanged: { tools: { onChanged } }` (v2) |
-| Pinned tools (frequent → direct) | register as real tools; toggle via `RegisteredTool.enable()/disable()` (auto `list_changed`) |
-| BM25 hybrid + reranker | inside `retriever.ts`; no API impact |
-| Profiles / RBAC / allowlist | filter in `search`/`dispatch`; profile from HTTP session/header |
-| New-tool quarantine (supply-chain) | indexer: new downstream tool quarantined until approved |
-| Web UI + multi-user | on top of HTTP mode |
+### Phase 0 — Walking skeleton ✅ DONE
+Status: complete (commit `999178d`). Verified end-to-end (§6).
+- [x] Project scaffold (TS, pnpm, tsconfig, Apache-2.0 LICENSE, .gitignore)
+- [x] `config.ts` — load/validate drop-in `mcpServers` config
+- [x] `downstream.ts` — connect N servers (stdio+HTTP), paginate `tools/list`, isolate failures
+- [x] `facade.ts` — 3 facade tools (`search_tools`/`call_tool`/`list_servers`)
+- [x] `dispatch.ts` — proxy + result normalization
+- [x] `retriever.ts` — keyword **stub**
+- [x] `index.ts` — stdio entrypoint, stderr-only logging
+- [x] `smoke-test.mjs` — end-to-end check passes
+
+### Phase 1 — RAG core (THE differentiator) ⬜ NEXT
+Status: not started. Replace the keyword stub with real semantic retrieval.
+- [ ] Add `fastembed` dep; lazy-load `bge-small-en-v1.5` (download once, cache)
+- [ ] `index/embed.ts` — embed a string / batch; expose `dimension`
+- [ ] `index/store.ts` — in-memory vectors + cosine; persist to `.rag-mcp/index.json`; load on boot
+- [ ] Tool → document: `"{server}.{name}: {description} | params: {param keys}"`
+- [ ] `retriever.ts` — replace stub: embed query → cosine → top-k full schemas
+- [ ] Index invalidation: rebuild when downstream tool set hash changes
+- [ ] First-run UX: model download progress to **stderr** (stdout is MCP channel)
+- [ ] Extend `smoke-test.mjs`: assert semantic hit (e.g. "send a message to a channel" → the right tool even without keyword overlap)
+
+**Acceptance:** with ~50+ downstream tools, `search_tools("<intent with no exact keyword>")` returns the correct tool in top-k; index persists and reloads without re-embedding; no network calls / no API key required.
+
+### Phase 2 — Dual-mode metrics + dashboard ⬜
+Status: not started. Implements §5.
+- [ ] Add `tiktoken` (or Anthropic count-tokens for Claude) for token counting
+- [ ] `metrics.ts` — track `baseline` (all schemas), `facadeCost`, `surfaced`; compute `saved`
+- [ ] Mode switch on `billing.mode`: `api` → `$ saved`; `subscription` → freed context (tokens + % window), est. extra requests, Cursor-40-cap flag
+- [ ] `get_metrics` facade tool (live read)
+- [ ] `report.ts` — single-file `report.html` written to `.rag-mcp/`
+- [ ] Regenerate report on SessionEnd (document the hook; provide a `--report` flag fallback)
+
+**Acceptance:** after a session, `report.html` shows correct numbers in BOTH modes (flip `billing.mode` in config and re-run); subscription mode never shows `$`.
+
+### Phase 3 — Hardening & DX (ship after this) ⬜
+Status: not started.
+- [ ] Config schema validation with clear errors (zod over the config file)
+- [ ] Graceful downstream reconnect / surfacing of dead servers in `list_servers`
+- [ ] Unit tests (retriever ranking, dispatch normalization, metrics math) + CI (GitHub Actions: build + test)
+- [ ] `npx rag-mcp-router` works from a clean install; README quickstart verified
+- [ ] CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue templates
+
+**Acceptance:** `pnpm build && pnpm test` green in CI; a new user can go from clone → working router against one real server in <5 min.
+
+### Phase 4 — Streamable HTTP transport (remote / team) ⬜
+- [ ] Server transport `NodeStreamableHTTPServerTransport({ sessionIdGenerator })` (v2 `@modelcontextprotocol/node`); evaluate v1.x HTTP path too
+- [ ] `--http <port>` flag; keep stdio default
+- [ ] Per-session isolation
+**Acceptance:** a remote MCP client connects over HTTP and runs the full search→call flow.
+
+### Phase 5 — Advanced retrieval ⬜
+- [ ] BM25 lexical index; hybrid score = α·cosine + β·bm25 (configurable)
+- [ ] Optional cross-encoder rerank of top-N
+- [ ] Pinned tools: expose a few high-frequency tools directly via `registerTool`; toggle with `RegisteredTool.enable()/disable()`
+**Acceptance:** measurable top-k accuracy improvement on a fixed query set vs Phase 1; pinned tools callable without `search_tools`.
+
+### Phase 6 — Profiles / RBAC / supply-chain ⬜
+- [ ] Named profiles (per client/project) with tool allow/deny lists; filter in `search` + `dispatch`
+- [ ] New-tool **quarantine**: a newly appearing downstream tool is not indexed/callable until approved
+**Acceptance:** a quarantined tool is invisible to `search_tools` and rejected by `call_tool` until approved.
+
+### Phase 7 — Live re-index ⬜
+- [ ] Client-side `listChanged: { tools: { onChanged } }` (v2) → re-embed only changed server
+**Acceptance:** adding a tool to a running downstream server updates results without restart.
+
+### Phase 8 — Distribution & launch ⬜
+- [ ] Publish to npm; semver; CHANGELOG
+- [ ] Single-binary build (bun/pkg)
+- [ ] Launch post + demo (the "60K → 8K" before/after); submit to awesome-mcp lists
+**Acceptance:** `npx rag-mcp-router@latest` runs; repo public with README/badges.
+
+### Phase 9 — Web UI + multi-user ⬜
+- [ ] Web dashboard (metrics, server/profile management) on top of HTTP mode
+**Acceptance:** manage servers and view metrics from a browser.
 
 ## 8. Verified SDK API reference (v1.x, via context7 — saves you re-querying)
 
