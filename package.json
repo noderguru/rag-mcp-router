@@ -1,0 +1,41 @@
+{
+  "name": "rag-mcp-router",
+  "version": "0.1.0",
+  "description": "Open-source RAG router for MCP — sits in front of all your MCP servers and exposes only the relevant tools per query, killing context overload.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "rag-mcp-router": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "rag-mcp.config.example.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "rag",
+    "tool-selection",
+    "ai-agents",
+    "context-optimization"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "billing": { "mode": "subscription", "client": "generic", "contextWindow": 200000 },
+  "embedding": { "backend": "local", "model": "bge-small-en-v1.5" },
+  "retrieval": { "topK": 6, "hybrid": false },
+  "mcpServers": {
+    "everything": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-everything"]
+    }
+  }
+}

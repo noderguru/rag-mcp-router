@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.log
+
+# local runtime state (index, metrics, reports)
+.rag-mcp/
+
+# local config may contain secrets in env blocks
+rag-mcp.config.json
