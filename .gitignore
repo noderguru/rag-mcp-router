@@ -7,3 +7,4 @@ dist/
 
 # local config may contain secrets in env blocks
 rag-mcp.config.json
+.rag-mcp

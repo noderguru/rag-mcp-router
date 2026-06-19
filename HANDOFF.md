@@ -87,13 +87,13 @@ harness, so it covers the whole class — dozens of harnesses, not two.
 
 Verified June 2026:
 
-| Tool | Is it an MCP client? | Works with router |
-|---|---|---|
-| **Kimi Code CLI** (Moonshot) | ✅ own CLI with MCP | ✅ yes |
-| **Xiaomi MiMo Code** | ✅ own agentic CLI, MCP stdio tools; auto-imports MCP servers from Claude Code config | ✅ yes |
-| **Z.ai GLM (devpack)** | ⤴️ a model plan applied to Claude Code / Cline / OpenCode | ✅ via the harness |
-| **MiniMax MMX-CLI** | ❌ intentionally "MCP-free" (exposes shell commands; runs as a skill inside Claude Code/Cursor) | ⚠️ not into mmx-cli directly; ✅ when the MiniMax model runs inside Claude Code/Cursor |
-| Claude Code, Cursor, Cline, OpenCode, Windsurf, Cherry Studio, Qwen Code, CodeBuddy, OpenClaw, … | ✅ MCP clients | ✅ yes |
+| Tool | Is it an MCP client? | Tool limit | Works with router |
+|---|---|---|---|
+| **Kimi Code CLI** (Moonshot) | ✅ own CLI with MCP | none (was 128, removed Dec 2025) | ✅ yes |
+| **Xiaomi MiMo Code** | ✅ own agentic CLI, MCP stdio tools; auto-imports MCP servers from Claude Code config | none | ✅ yes |
+| **Z.ai GLM (devpack)** | ⤴️ a model plan applied to Claude Code / Cline / OpenCode | — | ✅ via the harness |
+| **MiniMax MMX-CLI** | ❌ intentionally "MCP-free" (exposes shell commands; runs as a skill inside Claude Code/Cursor) | — | ⚠️ not into mmx-cli directly; ✅ when the MiniMax model runs inside Claude Code/Cursor |
+| Claude Code, Cursor, Cline, OpenCode, Windsurf, Cherry Studio, Qwen Code, CodeBuddy, OpenClaw, … | ✅ MCP clients | see §5.2 | ✅ yes |
 
 **Implication for value:** smaller/cheaper models suffer *more* from tool overload
 and often have smaller context windows, so "surface only the 8 relevant tools"
@@ -235,9 +235,11 @@ cap_bypassed    = show ONLY if billing.client maps to a client with a HARD tool 
 | `vscode` / `copilot` | **128** | Hard cap at request time ("may not include more than 128 tools"); has auto-grouping "virtual tools" above a threshold |
 | `claude-code` | none (soft) | Bounded by context window; ships built-in **MCP Tool Search** (defers tool defs, loads on demand — same idea as us, but Claude-only) |
 | `codex` (OpenAI CLI) | none documented | Best-practice guidance only (context pollution) |
+| `kimi-code` (MoonshotAI) | none (soft) | **Previously 128** — removed Dec 2025 by MoonshotAI staff. Now unlimited tools, constrained only by token context (256K for K2.5). Confirmed in forum and in source (no MAX_TOOLS / slice in `packages/agent-core/src/mcp/`). |
+| `mimo-code` (XiaomiMiMo) | none (soft) | No hard cap. Confirmed in source: `packages/opencode/src/mcp/index.ts` — `tools()` iterates all tools from all connected clients without capping or truncation. Fork of OpenCode, inherits same unlimited approach. |
 
-So `cap_bypassed` fires for `cursor`/`copilot`; for `claude-code`/`codex` lead with
-the freed-context / accuracy framing instead (no hard cap to "bypass"). Sources: §9.
+So `cap_bypassed` fires for `cursor`/`copilot`; for `claude-code`/`codex`/`kimi-code`/`mimo-code`
+lead with the freed-context / accuracy framing instead (no hard cap to "bypass"). Sources: §9.
 
 | Mode (`billing.mode`) | Headline |
 |---|---|
@@ -430,6 +432,8 @@ Client tool caps (verified June 2026 — see §5.2 table):
 - VS Code / Copilot 128-tool hard cap (+ virtual tools) — https://github.com/microsoft/vscode/issues/290356 , https://code.visualstudio.com/docs/copilot/agents/agent-tools
 - Claude Code: no hard cap, built-in MCP Tool Search (defers tool defs) — https://code.claude.com/docs/en/mcp , https://www.atcyrus.com/stories/mcp-tool-search-claude-code-context-pollution-guide
 - Codex CLI: no documented numeric cap, best-practice guidance — https://developers.openai.com/codex/config-reference
+- Kimi Code: 128-tool limit removed Dec 2025; now unlimited (256K context) — https://forum.moonshot.ai/t/my-onboarding-experience-and-questions-so-far/124/6 , https://github.com/MoonshotAI/kimi-code (code: no MAX_TOOLS in `packages/agent-core/src/mcp/`)
+- MiMo-Code: no hard cap; all tools forwarded — https://github.com/XiaomiMiMo/MiMo-Code (code: `packages/opencode/src/mcp/index.ts` — `tools()` iterates without capping)
 
 RAG tool-selection (the niche):
 - fintools-ai/rag-mcp (4⭐, abandoned — the gap) — https://github.com/fintools-ai/rag-mcp

@@ -4,13 +4,23 @@ import type { RouterConfig } from "./config.js";
 import type { Conn } from "./downstream.js";
 import { dispatch } from "./dispatch.js";
 import type { Retriever } from "./retriever.js";
+import type { Metrics } from "./metrics.js";
 
 /**
  * The MCP server the *client* sees. It exposes only three facade tools instead
  * of the full (possibly 100+) downstream tool set, keeping the client's context
  * tiny. The agent calls `search_tools` to surface what it needs, then `call_tool`.
+ *
+ * If a `metrics` instance is provided, every `search_tools`/`call_tool` call is
+ * recorded for per-request accounting (§5.1) and an additional `get_metrics`
+ * facade tool is registered.
  */
-export function createFacade(conns: Conn[], cfg: RouterConfig, retriever: Retriever): McpServer {
+export function createFacade(
+  conns: Conn[],
+  cfg: RouterConfig,
+  retriever: Retriever,
+  metrics?: Metrics,
+): McpServer {
   const server = new McpServer({ name: "rag-mcp-router", version: "0.1.0" });
 
   server.registerTool(
@@ -28,6 +38,7 @@ export function createFacade(conns: Conn[], cfg: RouterConfig, retriever: Retrie
     },
     async ({ intent, k }) => {
       const hits = await retriever.search(intent, k ?? cfg.retrieval.topK);
+      if (metrics) await metrics.recordRequest(hits);
       return { content: [{ type: "text", text: JSON.stringify(hits, null, 2) }] };
     },
   );
@@ -46,6 +57,7 @@ export function createFacade(conns: Conn[], cfg: RouterConfig, retriever: Retrie
       },
     },
     async ({ server: srv, name, arguments: args }) => {
+      if (metrics) metrics.recordCall(srv, name);
       return dispatch(conns, srv, name, args ?? {});
     },
   );
@@ -62,6 +74,23 @@ export function createFacade(conns: Conn[], cfg: RouterConfig, retriever: Retrie
       return { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }] };
     },
   );
+
+  if (metrics) {
+    server.registerTool(
+      "get_metrics",
+      {
+        title: "Router session metrics",
+        description:
+          "Return live per-request accounting for the current session: " +
+          "tokens saved, surfaced tools, per-tool call counts, baseline vs actual.",
+        inputSchema: {},
+      },
+      async () => {
+        const snap = metrics.snapshot();
+        return { content: [{ type: "text", text: JSON.stringify(snap, null, 2) }] };
+      },
+    );
+  }
 
   return server;
 }

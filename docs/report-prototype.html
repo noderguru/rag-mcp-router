@@ -258,7 +258,7 @@
       <div class="hero-right">
         <p class="dek" id="dek"></p>
         <div class="keyfig" id="keyfig"></div>
-        <span class="cap-note" id="cap-note">Cursor 40-tool cap bypassed — 33 tools behind 3 facade tools</span>
+        <span class="cap-note" id="cap-note"><span id="cap-text"></span></span>
       </div>
     </div>
   </section>
@@ -416,6 +416,8 @@ function renderHeroStats(c) {
   else hero.textContent = "−" + pctStr(c.pct);
 
   document.getElementById("cap-note").classList.toggle("hidden", state.mode !== "subscription");
+  document.getElementById("cap-text").textContent =
+    `Cursor 40-tool cap bypassed — ${c.nTools} tools behind 3 facade tools`;
 
   let dek, stats;
   if (state.mode === "subscription") {
