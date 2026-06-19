@@ -404,6 +404,45 @@ Status: complete. Hybrid + MMR + pinned tools + eval benchmark, verified
 - [x] Eval benchmark: `test/eval/{catalog,queries}.json` + `test/eval/run.mjs` (`pnpm bench`) — top-1/top-3/MRR for semantic vs hybrid vs hybrid+MMR
 **Acceptance:** ✅ measurable: benchmark in place comparing modes; ✅ pinned tools callable without `search_tools` (smoke [8]). **Finding:** at small/medium catalog size semantic alone is already strong (top-3 ≈100% on the eval set); hybrid is neutral-to-positive (pays off on exact-term queries / large catalogs), MMR trades top-k precision for diversity → correctly default-off. Re-run `pnpm bench` before tuning.
 
+### Phase R — Result optimization ⬜  (recommended next; runtime context, not definitions)
+Addresses the *second* half of the context problem: tool **results** flow into
+the model verbatim today (dispatch.ts is a pass-through). Definitions are already
+trimmed (Phase 1/5); this trims runtime payloads. Default posture: **lossless** —
+hold large results and hand back a preview + a way to read the rest, rather than
+discarding data.
+
+- [ ] Token-count each downstream result (reuse js-tiktoken / countTokens)
+- [ ] Result budget (`results.maxTokens`, default ~2000): under budget → pass
+      through untouched (zero overhead)
+- [ ] Spill-and-paginate (default, lossless): over-budget results stored by
+      `resultId`; return first slice + `{resultId, shown, total, remaining, hint}`
+- [ ] New facade tool `get_result(resultId, offset, limit)` → returns further
+      slices on demand (works with any client; nothing lost)
+- [ ] Result store with TTL/size cap under `.rag-mcp/results/` (or in-memory),
+      cleaned on shutdown
+- [ ] Metrics/dashboard: add a SECOND savings axis — result tokens deferred
+      (total − shown), separate from definition-side savings (§5.1 currently
+      counts definitions only)
+- [ ] Opt-in aggressive modes (default off):
+      - array-aware truncation (valid-JSON tail marker, no parse breakage)
+      - per-tool field projection (drop named noisy fields)
+- [ ] Optional summarize backend (LLM-based) — documented, not default (mirrors
+      the cross-encoder reranker decision in Phase 5)
+
+Config (new `results` block):
+  maxTokens (2000), strategy: "passthrough" | "spill" | "truncate" (default
+  "spill"), store: "memory" | "disk" (default "disk"), ttlSeconds, dropFields
+  (per-tool map, opt-in).
+
+**Acceptance:** a tool returning a large payload injects ≤ maxTokens into context
+while the full result remains retrievable via get_result (lossless); the dashboard
+shows result-side tokens saved; passthrough path adds zero overhead for small
+results. Measure with a bench-style fixture (a tool returning a big array).
+
+**Honest tradeoffs:** spill is lossless but adds a round-trip when the data is
+truly needed; truncate/projection save more but can drop needed data → default
+off; summarize needs a model and can distort → optional, non-default.
+
 ### Phase 6 — Profiles / RBAC / supply-chain ⬜
 - [ ] Named profiles (per client/project) with tool allow/deny lists; filter in `search` + `dispatch`
 - [ ] New-tool **quarantine**: a newly appearing downstream tool is not indexed/callable until approved
