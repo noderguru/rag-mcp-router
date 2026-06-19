@@ -3,8 +3,9 @@ import { z } from "zod";
 import type { RouterConfig } from "./config.js";
 import type { Conn } from "./downstream.js";
 import { dispatch } from "./dispatch.js";
-import type { Retriever } from "./retriever.js";
+import type { Retriever, ToolHit } from "./retriever.js";
 import type { Metrics } from "./metrics.js";
+import { registerPinned } from "./pinned.js";
 
 /**
  * The MCP server the *client* sees. It exposes only three facade tools instead
@@ -20,6 +21,7 @@ export function createFacade(
   cfg: RouterConfig,
   retriever: Retriever,
   metrics?: Metrics,
+  catalog?: ToolHit[],
 ): McpServer {
   const server = new McpServer({ name: "rag-mcp-router", version: "0.1.0" });
 
@@ -97,6 +99,11 @@ export function createFacade(
         return { content: [{ type: "text", text: JSON.stringify(snap, null, 2) }] };
       },
     );
+  }
+
+  // Pinned tools — exposed directly so the client can call them without search_tools.
+  if (catalog && cfg.retrieval.pinned.length) {
+    registerPinned(server, catalog, cfg.retrieval.pinned, conns, metrics);
   }
 
   return server;

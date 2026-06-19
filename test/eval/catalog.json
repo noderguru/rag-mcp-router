@@ -1,0 +1,20 @@
+[
+  { "server": "github", "name": "create_issue", "description": "Open a new issue in a repository with a title and body", "params": ["repo", "title", "body"] },
+  { "server": "github", "name": "merge_pull_request", "description": "Merge an open pull request into its base branch", "params": ["repo", "pull_number", "method"] },
+  { "server": "github", "name": "list_commits", "description": "List recent commits on a branch", "params": ["repo", "branch"] },
+  { "server": "postgres", "name": "run_query", "description": "Execute a read-only SQL SELECT statement and return rows", "params": ["sql"] },
+  { "server": "postgres", "name": "list_tables", "description": "List all tables in the connected database schema", "params": ["schema"] },
+  { "server": "postgres", "name": "explain_query", "description": "Return the query planner execution plan for a SQL statement", "params": ["sql"] },
+  { "server": "files", "name": "read_file", "description": "Read the contents of a file from disk", "params": ["path"] },
+  { "server": "files", "name": "write_file", "description": "Create or overwrite a file with the given contents", "params": ["path", "content"] },
+  { "server": "files", "name": "search_files", "description": "Find files whose contents match a regular expression", "params": ["pattern", "dir"] },
+  { "server": "aws", "name": "s3_upload", "description": "Upload an object to an S3 bucket", "params": ["bucket", "key", "body"] },
+  { "server": "aws", "name": "lambda_invoke", "description": "Invoke a Lambda function with a JSON payload", "params": ["functionName", "payload"] },
+  { "server": "aws", "name": "ec2_describe_instances", "description": "List EC2 virtual machine instances and their state", "params": ["region"] },
+  { "server": "slack", "name": "post_message", "description": "Send a message to a Slack channel", "params": ["channel", "text"] },
+  { "server": "slack", "name": "upload_snippet", "description": "Share a code snippet or file in a Slack channel", "params": ["channel", "content"] },
+  { "server": "media", "name": "get_tiny_image", "description": "Return a small sample logo image encoded as base64", "params": [] },
+  { "server": "media", "name": "transcribe_audio", "description": "Convert spoken words in an audio file into text", "params": ["path"] },
+  { "server": "calendar", "name": "create_event", "description": "Schedule a new calendar event with a start and end time", "params": ["title", "start", "end"] },
+  { "server": "calendar", "name": "list_events", "description": "List upcoming events on the calendar", "params": ["from", "to"] }
+]

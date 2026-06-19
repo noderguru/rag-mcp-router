@@ -40,6 +40,11 @@ export class VectorStore {
     return scored.slice(0, Math.max(0, k));
   }
 
+  /** Cosine similarity of `query` to every vector (index-aligned to the catalog). */
+  scoreAll(query: number[]): number[] {
+    return this.vectors.map((v) => dot(query, v));
+  }
+
   persist(path: string, model: string, hash: string): void {
     const file: IndexFile = {
       version: INDEX_VERSION,

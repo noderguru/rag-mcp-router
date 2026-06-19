@@ -76,6 +76,22 @@ if (facadeNames.includes("get_metrics")) {
   console.log("[6] ⚠️ get_metrics not registered (metrics disabled)");
 }
 
+// ── Phase 5: pinned tools ────────────────────────────────────────────
+
+// 8) The pinned tool ("everything.echo" → "everything_echo") must be exposed
+// directly in the facade tool list and callable without search_tools.
+const pinnedName = "everything_echo";
+console.log("[8] pinned tool present:", facadeNames.includes(pinnedName));
+if (!facadeNames.includes(pinnedName)) {
+  throw new Error(`pinned tool "${pinnedName}" not exposed in facade tool list`);
+}
+const pinnedRes = await client.callTool({ name: pinnedName, arguments: { message: "pinned-works" } });
+console.log("[8] call pinned ->", pinnedRes.content[0].text);
+if (!pinnedRes.content[0].text.includes("pinned-works")) {
+  throw new Error("pinned tool call did not proxy to downstream correctly");
+}
+console.log("[8] ✅ pinned tool callable without search_tools");
+
 await client.close();
 
 // 7) report.html must exist after process exits

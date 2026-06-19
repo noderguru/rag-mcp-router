@@ -1,7 +1,7 @@
 {
   "billing": { "mode": "subscription", "client": "generic", "contextWindow": 200000 },
   "embedding": { "backend": "local", "model": "bge-small-en-v1.5" },
-  "retrieval": { "topK": 6, "hybrid": false },
+  "retrieval": { "topK": 6, "hybrid": true, "pinned": ["everything.echo"] },
   "mcpServers": {
     "everything": {
       "command": "npx",

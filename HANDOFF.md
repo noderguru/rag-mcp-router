@@ -16,17 +16,33 @@ downstream servers) and exposes only the **relevant** tools per query, instead o
 dumping every tool definition (often 100+) into the agent's context on every
 request.
 
-**Positioning — say this, not "aggregator".** Topologically we are an
-orchestrator/gateway, BUT the gateway/aggregator category is saturated (MetaMCP,
-IBM ContextForge, Kong, 17+ tools). Our differentiator is the **RAG
-tool-selection layer**: a plain aggregator merges *all* downstream tools into one
-big list; we retrieve a *smart subset* per query. Always keep the word
-"RAG" / "semantic" in how we describe this, or we blur into the crowd.
+**Positioning — be honest, the category is NOT empty (revised June 2026 after a
+landscape recheck).** Dynamic/RAG tool selection is a *validated, competitive*
+space, not a blue ocean. Do **not** claim "nobody has this / not even Anthropic":
+- **Anthropic ships it natively** — the "Tool Search Tool", built into Claude Code
+  for MCP (Jan 2026). Uses **BM25 + regex** (lexical), **Claude-only / API-side**.
+- **RAG-MCP paper** (arXiv 2505.03275, May 2025) describes the exact approach.
+- OSS gateways already do semantic/optimized routing: agentic-community/
+  mcp-gateway-registry (FAISS + sentence-transformers, Apache-2.0, enterprise/K8s),
+  abdullah1854/MCPGateway (pattern-matching + token-optimization, MIT), Stacklok
+  MCP Optimizer, various "ChromaDB + MiniLM" semantic routers, mcp-spine.
+
+**Our defensible niche is the *intersection* no single competitor covers**, and
+the pitch should lead with these, not with novelty:
+1. **Vendor-neutral** — any MCP client, not Claude-only (this is the strongest,
+   most honest edge vs Anthropic).
+2. **Semantic (embeddings)** vs Anthropic's lexical BM25.
+3. **Local-first, no API key, Apache-2.0** vs enterprise/server gateways.
+4. **Transparent dual-mode savings dashboard** (nice-to-have, not unique).
+
+One-liner: *open, local-first, vendor-neutral alternative to Claude-only Tool
+Search — semantic tool selection for any agent, with transparent savings.*
+Still always say "RAG / semantic", never plain "aggregator".
 
 | Plain orchestrator / aggregator | This project (RAG orchestrator) |
 |---|---|
 | Merges **all** tools of all servers into one list | Returns a **smart subset** per query |
-| Client still sees 150 tools | Client sees 3 facade tools → then top-k relevant |
+| Client still sees 150 tools | Client sees 4 facade tools → then top-k relevant |
 | Solves "many servers" | Solves "many **tools in context**" |
 
 - **Status:** Phase 0 (walking skeleton) ✅ + Phase 1 (local-embeddings RAG core)
@@ -51,11 +67,17 @@ and deliberately picked the least-crowded one:
 | MCP server **manager / gateway / aggregator** | ❌ saturated | 17+ tools incl. IBM, Microsoft, Cloudflare, Kong, Linux Foundation |
 | **Generator** REST/OpenAPI → MCP | ❌ saturated | Stainless, Speakeasy/Gram, harsha-iiiv/openapi-mcp-generator (606⭐) |
 | **Token-budget profiler** | ⚠️ crowded | token-optimizer (1373⭐), ToolHive (1891⭐) |
-| **RAG tool-selection router** | ✅ **open** | best existing OSS repo = fintools-ai/rag-mcp at **4⭐, abandoned** |
+| **RAG tool-selection router** | ⚠️ **competitive (re-assessed)** | looked open in early scoping (best OSS then = fintools-ai/rag-mcp, 4⭐ abandoned), but a June 2026 recheck found real competition — see below |
 
-The RAG *tool-selection* router is the gap: the concept is documented and
-research-validated, but there is **no mature open-source product**. That is what
-we are building.
+**Reality check (June 2026).** This was originally picked as the *least-crowded*
+idea, and at first scan it looked open. A deeper landscape search later showed it
+is **validated and competitive**, not empty: Anthropic's native Tool Search
+(Claude Code), the RAG-MCP paper, and several OSS gateways (mcp-gateway-registry,
+MCPGateway, Stacklok Optimizer, ChromaDB+MiniLM routers). The honest framing is
+not "first to do this" but "the open, local-first, **vendor-neutral**, semantic
+option" — see the revised Positioning in §0. We still ship it because the
+*specific intersection* (any-client + embeddings + no-API-key + Apache-2.0 +
+savings transparency) is not covered by any single competitor.
 
 ## 2. The problem we solve (this is the pitch)
 
@@ -358,16 +380,29 @@ all landed and verified (`pnpm build && pnpm test` green; `pnpm smoke` passes).
 **Acceptance:** ✅ `pnpm build && pnpm test` green; CI runs the same on Node 20/22; ✅ `npx rag-mcp-router --config …` runs from the packed tarball; a new user goes from clone → working router against one real server in <5 min.
 
 ### Phase 4 — Streamable HTTP transport (remote / team) ⬜
-- [ ] Server transport `NodeStreamableHTTPServerTransport({ sessionIdGenerator })` (v2 `@modelcontextprotocol/node`); evaluate v1.x HTTP path too
+- [ ] Server transport — **SDK recon done (June 2026): use stable v1.x
+  `StreamableHTTPServerTransport({ sessionIdGenerator })` from
+  `@modelcontextprotocol/sdk/server/streamableHttp.js`** (verified: imports +
+  constructs on installed v1.29.0; `@hono/node-server` resolves transitively).
+  Do NOT switch to the v2-alpha `NodeStreamableHTTPServerTransport` /
+  `@modelcontextprotocol/node` — same `sessionIdGenerator` API, no need.
 - [ ] `--http <port>` flag; keep stdio default
-- [ ] Per-session isolation
+- [ ] Per-session isolation — shared (downstream conns, retriever/index), per-session
+  (a fresh `McpServer` facade + its own `Metrics`) in a `Map<sessionId, …>`
+- [ ] Default bind 127.0.0.1 (no auth); network exposure / tokens deferred to Phase 6
 **Acceptance:** a remote MCP client connects over HTTP and runs the full search→call flow.
+**Note:** Phase 4 is *optional* — only needed for web/hosted clients (can't spawn a
+local process), remote/containerized deploys, or one shared router for a team.
+For a single local developer, stdio already covers everything; skip if not needed.
 
-### Phase 5 — Advanced retrieval ⬜
-- [ ] BM25 lexical index; hybrid score = α·cosine + β·bm25 (configurable)
-- [ ] Optional cross-encoder rerank of top-N
-- [ ] Pinned tools: expose a few high-frequency tools directly via `registerTool`; toggle with `RegisteredTool.enable()/disable()`
-**Acceptance:** measurable top-k accuracy improvement on a fixed query set vs Phase 1; pinned tools callable without `search_tools`.
+### Phase 5 — Advanced retrieval ✅ DONE
+Status: complete. Hybrid + MMR + pinned tools + eval benchmark, verified
+(`pnpm test` 39 units, `pnpm smoke` step [8], `pnpm bench`).
+- [x] BM25 lexical index (`src/index/bm25.ts`); hybrid score = α·cosine + β·bm25, min-max normalized, configurable (`retrieval.hybrid/alpha/beta`), wired in `RagRetriever`
+- [x] Optional rerank of top-N — **MMR** (relevance-vs-diversity over existing embeddings, `src/index/rerank.ts`), `retrieval.rerank/rerankLambda/candidates`, default off. (fastembed 2.1 has no cross-encoder; a neural reranker is a documented future backend — MMR is the dependency-free default.)
+- [x] Pinned tools: `retrieval.pinned: ["server.name"]` → `registerPinned` (`src/pinned.ts`) exposes them directly via `registerTool` (JSON-Schema→Zod shallow converter); counted as constant overhead in metrics
+- [x] Eval benchmark: `test/eval/{catalog,queries}.json` + `test/eval/run.mjs` (`pnpm bench`) — top-1/top-3/MRR for semantic vs hybrid vs hybrid+MMR
+**Acceptance:** ✅ measurable: benchmark in place comparing modes; ✅ pinned tools callable without `search_tools` (smoke [8]). **Finding:** at small/medium catalog size semantic alone is already strong (top-3 ≈100% on the eval set); hybrid is neutral-to-positive (pays off on exact-term queries / large catalogs), MMR trades top-k precision for diversity → correctly default-off. Re-run `pnpm bench` before tuning.
 
 ### Phase 6 — Profiles / RBAC / supply-chain ⬜
 - [ ] Named profiles (per client/project) with tool allow/deny lists; filter in `search` + `dispatch`
@@ -445,9 +480,23 @@ Client tool caps (verified June 2026 — see §5.2 table):
 - MiMo-Code: no hard cap; all tools forwarded — https://github.com/XiaomiMiMo/MiMo-Code (code: `packages/opencode/src/mcp/index.ts` — `tools()` iterates without capping)
 
 RAG tool-selection (the niche):
-- fintools-ai/rag-mcp (4⭐, abandoned — the gap) — https://github.com/fintools-ai/rag-mcp
+- fintools-ai/rag-mcp (4⭐, abandoned) — https://github.com/fintools-ai/rag-mcp
 - Semantic tool selection guide — https://www.rconnect.tech/blog/semantic-tool-selection-guide
 - SONAR (two-stage tool retrieval), NetMCP — https://arxiv.org/pdf/2510.13467
+
+Competitive landscape recheck (June 2026 — this niche is NOT empty):
+- Anthropic Tool Search Tool (BM25/regex, Claude-only, in Claude Code) —
+  https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool ,
+  https://tessl.io/blog/anthropic-brings-mcp-tool-search-to-claude-code/
+- RAG-MCP paper (semantic MCP tool retrieval, −50% tokens) — https://arxiv.org/abs/2505.03275
+- agentic-community/mcp-gateway-registry (FAISS + sentence-transformers, hybrid RRF,
+  Apache-2.0, enterprise/K8s) — https://github.com/agentic-community/mcp-gateway-registry
+- abdullah1854/MCPGateway (pattern-matching + token-optimization layers, MIT) —
+  https://github.com/abdullah1854/MCPGateway
+- Stacklok MCP Optimizer (team token-waste reduction) —
+  https://stacklok.com/blog/cut-token-waste-across-your-entire-team-with-the-mcp-optimizer/
+- Donnyb369/mcp-spine (local-first context minifier proxy) — https://github.com/Donnyb369/mcp-spine
+- awesome-mcp-gateways (list) — https://github.com/e2b-dev/awesome-mcp-gateways
 
 Competitors (saturated categories, for positioning):
 - Generators: https://www.stainless.com/blog/generate-mcp-servers-from-openapi-specs/ ,

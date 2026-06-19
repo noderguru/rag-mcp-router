@@ -37,13 +37,18 @@ async function main() {
 
   // ── metrics initialisation ──────────────────────────────────────────
   const baselinePerRequest = await sumSchemaTokens(catalog);
-  const facadeTokens = await facadeOverhead();
+  // Pinned tools are always visible to the client, so they count as constant
+  // overhead alongside the facade tools (not as per-request surfaced tools).
+  const pinnedHits = catalog.filter((t) => cfg.retrieval.pinned.includes(`${t.server}.${t.name}`));
+  const pinnedTokens = await sumSchemaTokens(pinnedHits);
+  const facadeTokens = (await facadeOverhead()) + pinnedTokens;
   const metrics = new Metrics(baselinePerRequest, facadeTokens);
   console.error(
-    `[rag-mcp-router] metrics: baseline ${baselinePerRequest} tok, facade overhead ${facadeTokens} tok`,
+    `[rag-mcp-router] metrics: baseline ${baselinePerRequest} tok, facade overhead ${facadeTokens} tok` +
+      (pinnedHits.length ? ` (incl. ${pinnedHits.length} pinned)` : ""),
   );
 
-  const facade = createFacade(conns, cfg, retriever, metrics);
+  const facade = createFacade(conns, cfg, retriever, metrics, catalog);
 
   // ── graceful shutdown → report.html ─────────────────────────────────
   let shuttingDown = false;

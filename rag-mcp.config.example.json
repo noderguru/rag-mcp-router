@@ -10,7 +10,13 @@
   },
   "retrieval": {
     "topK": 6,
-    "hybrid": true
+    "hybrid": true,
+    "alpha": 0.7,
+    "beta": 0.3,
+    "rerank": false,
+    "rerankLambda": 0.7,
+    "candidates": 20,
+    "pinned": []
   },
   "mcpServers": {
     "github": {

@@ -42,7 +42,21 @@ const EmbeddingSchema = z
 const RetrievalSchema = z
   .object({
     topK: z.number().int().positive().default(6),
+    /** Blend lexical BM25 with semantic cosine (Phase 5). */
     hybrid: z.boolean().default(true),
+    /** Weight of the semantic (cosine) score in the hybrid blend. */
+    alpha: z.number().min(0).default(0.7),
+    /** Weight of the lexical (BM25) score in the hybrid blend. */
+    beta: z.number().min(0).default(0.3),
+    /** Size of the first-stage candidate pool fed to the reranker. */
+    candidates: z.number().int().positive().default(20),
+    /** Enable MMR (relevance-vs-diversity) reranking of the candidate pool. */
+    rerank: z.boolean().default(false),
+    /** MMR tradeoff: 1.0 = pure relevance, 0.0 = pure diversity. */
+    rerankLambda: z.number().min(0).max(1).default(0.7),
+    /** Tools to expose directly to the client ("server.name"), callable
+     *  without search_tools. Keep this short — pinned tools always cost context. */
+    pinned: z.array(z.string()).default([]),
   })
   .strict()
   .default({});

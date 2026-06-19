@@ -22,6 +22,32 @@ test("applies defaults for omitted sections", () => {
   assert.equal(cfg.embedding.model, "bge-small-en-v1.5");
   assert.equal(cfg.retrieval.topK, 6);
   assert.equal(cfg.retrieval.hybrid, true);
+  // Phase 5 defaults
+  assert.equal(cfg.retrieval.alpha, 0.7);
+  assert.equal(cfg.retrieval.beta, 0.3);
+  assert.equal(cfg.retrieval.candidates, 20);
+  assert.equal(cfg.retrieval.rerank, false);
+  assert.equal(cfg.retrieval.rerankLambda, 0.7);
+  assert.deepEqual(cfg.retrieval.pinned, []);
+});
+
+test("accepts custom Phase 5 retrieval settings", () => {
+  const cfg = loadConfig(
+    tmpConfig({
+      retrieval: { alpha: 0.5, beta: 0.5, rerank: true, rerankLambda: 0.3, pinned: ["everything.echo"] },
+      mcpServers: { x: { command: "n" } },
+    }),
+  );
+  assert.equal(cfg.retrieval.rerank, true);
+  assert.equal(cfg.retrieval.rerankLambda, 0.3);
+  assert.deepEqual(cfg.retrieval.pinned, ["everything.echo"]);
+});
+
+test("rejects rerankLambda outside [0,1]", () => {
+  assert.throws(
+    () => loadConfig(tmpConfig({ retrieval: { rerankLambda: 1.5 }, mcpServers: { x: { command: "n" } } })),
+    /rerankLambda/,
+  );
 });
 
 test("accepts a url-based (HTTP) server", () => {

@@ -5,6 +5,8 @@ import type { RouterConfig } from "./config.js";
 import type { Conn } from "./downstream.js";
 import { Embedder } from "./index/embed.js";
 import { VectorStore } from "./index/store.js";
+import { Bm25Index } from "./index/bm25.js";
+import { mmr } from "./index/rerank.js";
 
 export interface ToolHit {
   server: string;
@@ -76,25 +78,77 @@ export async function buildRetriever(
       store.persist(indexPath, cfg.embedding.model, hash);
       console.error(`[retriever] index built and persisted to ${indexPath}`);
     }
-    return new SemanticRetriever(catalog, store, embedder);
+    const bm25 = cfg.retrieval.hybrid ? new Bm25Index(docs) : null;
+    console.error(
+      `[retriever] mode: ${cfg.retrieval.hybrid ? `hybrid (α=${cfg.retrieval.alpha}/β=${cfg.retrieval.beta})` : "semantic"}` +
+        `${cfg.retrieval.rerank ? `, MMR rerank (λ=${cfg.retrieval.rerankLambda})` : ""}`,
+    );
+    return new RagRetriever(catalog, store, embedder, bm25, cfg);
   } catch (err) {
     console.error("[retriever] semantic backend unavailable, using keyword fallback:", err);
     return new KeywordRetriever(catalog);
   }
 }
 
-/** Local-embeddings retrieval: embed query → cosine top-k over the index. */
-class SemanticRetriever implements Retriever {
+/** Min-max normalize a score array to [0,1]; flat arrays map to all-zeros. */
+function normalize(scores: number[]): number[] {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const s of scores) {
+    if (s < min) min = s;
+    if (s > max) max = s;
+  }
+  const range = max - min;
+  if (range <= 0) return scores.map(() => 0);
+  return scores.map((s) => (s - min) / range);
+}
+
+/** Descending argsort: returns catalog indices ordered by score, best first. */
+function argsortDesc(scores: number[]): number[] {
+  return scores
+    .map((score, index) => ({ score, index }))
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.index);
+}
+
+/**
+ * Local-embeddings retrieval with an optional lexical (BM25) blend and optional
+ * MMR rerank:
+ *   1. score every tool by cosine (and, in hybrid mode, BM25), blend α·cos+β·bm25
+ *   2. take the top-`candidates` pool
+ *   3. either return the top-k, or MMR-rerank the pool for relevance+diversity
+ */
+export class RagRetriever implements Retriever {
   constructor(
     private readonly catalog: ToolHit[],
     private readonly store: VectorStore,
     private readonly embedder: Embedder,
+    private readonly bm25: Bm25Index | null,
+    private readonly cfg: RouterConfig,
   ) {}
 
   async search(query: string, k: number): Promise<ToolHit[]> {
     if (!query.trim()) return this.catalog.slice(0, k);
+    const { alpha, beta, rerank, rerankLambda, candidates } = this.cfg.retrieval;
+
     const queryVec = await this.embedder.embedQuery(query);
-    return this.store.search(queryVec, k).map((r) => this.catalog[r.index]);
+    const cos = this.store.scoreAll(queryVec);
+
+    let combined: number[];
+    if (this.bm25) {
+      const lex = this.bm25.scoreAll(query);
+      const nc = normalize(cos);
+      const nl = normalize(lex);
+      combined = cos.map((_, i) => alpha * nc[i] + beta * nl[i]);
+    } else {
+      combined = cos;
+    }
+
+    const ranked = argsortDesc(combined);
+    if (!rerank) return ranked.slice(0, k).map((i) => this.catalog[i]);
+
+    const pool = ranked.slice(0, Math.max(k, candidates));
+    return mmr(queryVec, pool, this.store.vectors, rerankLambda, k).map((i) => this.catalog[i]);
   }
 }
 

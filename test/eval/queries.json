@@ -1,0 +1,23 @@
+[
+  { "query": "show me a small picture", "expect": "media.get_tiny_image" },
+  { "query": "turn this recording into a transcript", "expect": "media.transcribe_audio" },
+  { "query": "file a bug report on the repo", "expect": "github.create_issue" },
+  { "query": "land this PR onto main", "expect": "github.merge_pull_request" },
+  { "query": "what changed recently in the codebase", "expect": "github.list_commits" },
+  { "query": "fetch some rows from the database", "expect": "postgres.run_query" },
+  { "query": "why is my SQL slow, show the plan", "expect": "postgres.explain_query" },
+  { "query": "what tables exist in the db", "expect": "postgres.list_tables" },
+  { "query": "save text into a document on disk", "expect": "files.write_file" },
+  { "query": "open a document and show its contents", "expect": "files.read_file" },
+  { "query": "grep the project for a pattern", "expect": "files.search_files" },
+  { "query": "put a file in an s3 bucket", "expect": "aws.s3_upload" },
+  { "query": "run a serverless function", "expect": "aws.lambda_invoke" },
+  { "query": "list my virtual machines", "expect": "aws.ec2_describe_instances" },
+  { "query": "send a note to the team chat", "expect": "slack.post_message" },
+  { "query": "book a meeting next week", "expect": "calendar.create_event" },
+  { "query": "what is on my schedule", "expect": "calendar.list_events" },
+  { "query": "ec2_describe_instances", "expect": "aws.ec2_describe_instances" },
+  { "query": "explain_query execution plan", "expect": "postgres.explain_query" },
+  { "query": "lambda_invoke", "expect": "aws.lambda_invoke" },
+  { "query": "upload_snippet to a channel", "expect": "slack.upload_snippet" }
+]
