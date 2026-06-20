@@ -1,0 +1,41 @@
+name: Release
+
+# Publishes to npm when a version tag (v*) is pushed.
+# One-time setup: add an automation NPM_TOKEN to the repo secrets
+# (Settings → Secrets and variables → Actions → New repository secret).
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck + build
+        run: pnpm build
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Publish to npm
+        run: pnpm publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

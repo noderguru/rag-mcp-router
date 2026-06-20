@@ -404,30 +404,35 @@ Status: complete. Hybrid + MMR + pinned tools + eval benchmark, verified
 - [x] Eval benchmark: `test/eval/{catalog,queries}.json` + `test/eval/run.mjs` (`pnpm bench`) — top-1/top-3/MRR for semantic vs hybrid vs hybrid+MMR
 **Acceptance:** ✅ measurable: benchmark in place comparing modes; ✅ pinned tools callable without `search_tools` (smoke [8]). **Finding:** at small/medium catalog size semantic alone is already strong (top-3 ≈100% on the eval set); hybrid is neutral-to-positive (pays off on exact-term queries / large catalogs), MMR trades top-k precision for diversity → correctly default-off. Re-run `pnpm bench` before tuning.
 
-### Phase R — Result optimization ⬜  (recommended next; runtime context, not definitions)
+### Phase R — Result optimization ✅  (runtime context, not definitions)
 Addresses the *second* half of the context problem: tool **results** flow into
 the model verbatim today (dispatch.ts is a pass-through). Definitions are already
 trimmed (Phase 1/5); this trims runtime payloads. Default posture: **lossless** —
 hold large results and hand back a preview + a way to read the rest, rather than
 discarding data.
 
-- [ ] Token-count each downstream result (reuse js-tiktoken / countTokens)
-- [ ] Result budget (`results.maxTokens`, default ~2000): under budget → pass
-      through untouched (zero overhead)
-- [ ] Spill-and-paginate (default, lossless): over-budget results stored by
-      `resultId`; return first slice + `{resultId, shown, total, remaining, hint}`
-- [ ] New facade tool `get_result(resultId, offset, limit)` → returns further
+Implemented in `src/results.ts` (`ResultStore` + `applyResultPolicy`), wired at
+both dispatch call-sites — `call_tool` (facade.ts) and pinned tools (pinned.ts) —
+keeping `dispatch.ts` a pure proxy (variant A).
+
+- [x] Token-count each downstream result (reuse js-tiktoken / countTokens)
+- [x] Result budget (`results.maxTokens`, default 2000): under budget → pass
+      through untouched (zero overhead — same object reference returned)
+- [x] Spill-and-paginate (default, lossless): over-budget results stored by
+      `resultId`; return preview slice + `{resultId, shownChars, totalChars,
+      remainingChars, totalTokens, hint}`
+- [x] New facade tool `get_result(resultId, offset, limit)` → returns further
       slices on demand (works with any client; nothing lost)
-- [ ] Result store with TTL/size cap under `.rag-mcp/results/` (or in-memory),
-      cleaned on shutdown
-- [ ] Metrics/dashboard: add a SECOND savings axis — result tokens deferred
-      (total − shown), separate from definition-side savings (§5.1 currently
-      counts definitions only)
-- [ ] Opt-in aggressive modes (default off):
-      - array-aware truncation (valid-JSON tail marker, no parse breakage)
-      - per-tool field projection (drop named noisy fields)
+- [x] Result store with TTL sweep under `.rag-mcp/results/` (or in-memory),
+      disposed on shutdown
+- [x] Metrics/dashboard: a SECOND savings axis — `resultTokensDeferred`
+      (total − shown), separate from definition-side savings (§5.1 counts
+      definitions only); surfaced in snapshot + report state
+- [x] Opt-in aggressive modes (default off):
+      - truncate strategy (budget cut + marker)
+      - per-tool field projection `dropFields` (drop named noisy fields)
 - [ ] Optional summarize backend (LLM-based) — documented, not default (mirrors
-      the cross-encoder reranker decision in Phase 5)
+      the cross-encoder reranker decision in Phase 5) — *deferred, not built*
 
 Config (new `results` block):
   maxTokens (2000), strategy: "passthrough" | "spill" | "truncate" (default
@@ -452,11 +457,20 @@ off; summarize needs a model and can distort → optional, non-default.
 - [ ] Client-side `listChanged: { tools: { onChanged } }` (v2) → re-embed only changed server
 **Acceptance:** adding a tool to a running downstream server updates results without restart.
 
-### Phase 8 — Distribution & launch ⬜
-- [ ] Publish to npm; semver; CHANGELOG
-- [ ] Single-binary build (bun/pkg)
+### Phase 8 — Distribution & launch ✅  (packaging done; publish is a manual/CI step)
+Packaging & docs are release-ready; the actual `npm publish` is gated on the owner adding
+an `NPM_TOKEN` secret and pushing a `v*` tag (see `RELEASING.md`).
+- [x] npm metadata complete (author/repository/homepage/bugs/publishConfig; expanded keywords)
+- [x] `CHANGELOG.md` (Keep-a-Changelog, seeded 0.1.0) + included in `files`
+- [x] Release automation: `.github/workflows/release.yml` publishes on `v*` tag via `NPM_TOKEN`
+- [x] `RELEASING.md` — release ritual + one-time token/secret setup + manual fallback
+- [x] Top-tier `README.md` rewrite — badges, TOC, who-it's-for, architecture diagram,
+      5-tool facade, config reference (incl. `results`), troubleshooting, SEO keywords
+- [ ] Single-binary build (bun/pkg) — **deferred** (npx covers distribution)
 - [ ] Launch post + demo (the "60K → 8K" before/after); submit to awesome-mcp lists
-**Acceptance:** `npx rag-mcp-router@latest` runs; repo public with README/badges.
+**Acceptance:** `npx rag-mcp-router@latest` runs; repo public with README/badges. Verified:
+build green, 46 unit tests pass, smoke passes (facade shows 5 tools incl. `get_result`),
+`npm pack --dry-run` ships dist+README+LICENSE+CHANGELOG+docs+config (no src/node_modules).
 
 ### Phase 9 — Web UI + multi-user ⬜
 - [ ] Web dashboard (metrics, server/profile management) on top of HTTP mode

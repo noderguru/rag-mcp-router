@@ -3,7 +3,19 @@
   "version": "0.1.0",
   "description": "Open-source RAG router for MCP — sits in front of all your MCP servers and exposes only the relevant tools per query, killing context overload.",
   "license": "Apache-2.0",
+  "author": "noderguru <noderguru@gmail.com>",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noderguru/rag-mcp-router.git"
+  },
+  "homepage": "https://github.com/noderguru/rag-mcp-router#readme",
+  "bugs": {
+    "url": "https://github.com/noderguru/rag-mcp-router/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "rag-mcp-router": "dist/index.js"
   },
@@ -12,6 +24,7 @@
     "docs/report-prototype.html",
     "rag-mcp.config.example.json",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
@@ -26,10 +39,23 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
+    "mcp-server",
+    "mcp-client",
+    "mcp-gateway",
+    "mcp-router",
     "rag",
     "tool-selection",
+    "tool-search",
+    "semantic-search",
+    "embeddings",
     "ai-agents",
-    "context-optimization"
+    "agent-tools",
+    "llm",
+    "claude",
+    "cursor",
+    "context-window",
+    "context-optimization",
+    "token-optimization"
   ],
   "engines": {
     "node": ">=20"
