@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-20
+
+### Added
+- **`init` subcommand** — `npx rag-mcp-router init` scaffolds a starter
+  `rag-mcp.config.json` in the current directory (never overwrites an existing one),
+  so onboarding is a single command. Also added `--help`.
+- **README**: prominent savings-dashboard section with a link to an interactive demo
+  of the report, and clearer docs that a `report.html` is written on shutdown.
+
 ## [0.1.0] - 2026-06-20
 
 First public release. A local-first, vendor-neutral RAG router for the Model
@@ -38,5 +47,6 @@ context.
   CI (Node 20 & 22), an end-to-end smoke test, and a retrieval-quality benchmark
   (`pnpm bench`).
 
-[Unreleased]: https://github.com/noderguru/rag-mcp-router/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/noderguru/rag-mcp-router/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/noderguru/rag-mcp-router/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/noderguru/rag-mcp-router/releases/tag/v0.1.0

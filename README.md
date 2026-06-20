@@ -24,6 +24,9 @@ that actually match what it's trying to do right now.
 - **Semantic** — retrieval runs on local embeddings (vector similarity), not just lexical
   keyword/BM25 matching.
 - **Local-first** — no API key, no network at runtime once the embedding model is cached.
+- **Transparent savings** — every session writes an interactive `report.html` dashboard
+  showing exactly how many tokens (and how much money / context) the router saved.
+  [▶ Try the live demo](https://htmlpreview.github.io/?https://github.com/noderguru/rag-mcp-router/blob/main/docs/report-prototype.html).
 - **Fully open source** — Apache-2.0, no open-core, no telemetry.
 - **Drop-in** — config uses the same `mcpServers` shape as Claude/Cursor.
 
@@ -182,10 +185,15 @@ semantic tool selection for any agent, with transparent savings.**
 
 **Requirements:** Node.js **≥ 20**.
 
-Run it directly with `npx` (no clone needed):
+Get started in one command — no clone, no manual file copying:
 
 ```bash
-cp rag-mcp.config.example.json rag-mcp.config.json   # edit to your servers
+npx rag-mcp-router@latest init    # scaffolds rag-mcp.config.json in the current dir
+```
+
+Edit the generated `rag-mcp.config.json` to point at your MCP servers, then run:
+
+```bash
 npx rag-mcp-router@latest --config rag-mcp.config.json
 ```
 
@@ -310,11 +318,17 @@ A typical agent flow through the router:
 
 ### Savings dashboard
 
-On shutdown (`SIGINT`/`SIGTERM`) the router writes a self-contained **`report.html`** to
-`.rag-mcp/` showing how many tokens it saved this session — definition-side savings (tools
-not loaded) and result-side savings (`get_result` deferrals), in either API (`$ saved`) or
-subscription (freed context / extra requests) mode. The live numbers are also available any
-time via the `get_metrics` facade tool.
+**Every time you stop the router (`SIGINT`/`SIGTERM`), it writes a self-contained
+`report.html` into `.rag-mcp/`** — an interactive dashboard of exactly what it saved that
+session. Open it in any browser; no server needed.
+
+> **▶ [Try the interactive dashboard demo](https://htmlpreview.github.io/?https://github.com/noderguru/rag-mcp-router/blob/main/docs/report-prototype.html)** — the same report, rendered live with sample data, so you can click around before installing.
+
+It shows both savings axes — definition-side (tools not loaded into context) and result-side
+(`get_result` deferrals) — in either **API** mode (`$ saved`) or **subscription** mode (freed
+context / extra requests in budget), with a sortable per-tool table and what-if sliders for
+price and context window. The same numbers are available live at any time via the
+`get_metrics` facade tool.
 
 ### Tune with data, not vibes
 

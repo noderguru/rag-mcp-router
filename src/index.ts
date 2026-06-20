@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { writeFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { writeFileSync, existsSync, copyFileSync } from "node:fs";
+import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { loadConfig } from "./config.js";
@@ -21,8 +21,44 @@ function parseArgs(argv: string[]): { config: string } {
   return { config };
 }
 
+const HELP = `rag-mcp-router — semantic tool selection for MCP
+
+Usage:
+  rag-mcp-router init                 Scaffold a starter rag-mcp.config.json
+  rag-mcp-router --config <file>      Run the router (default: rag-mcp.config.json)
+  rag-mcp-router --help               Show this help
+
+Quick start:
+  npx rag-mcp-router init             # then edit "mcpServers" in the new file
+  npx rag-mcp-router --config rag-mcp.config.json
+`;
+
+/** `init` subcommand: copy the bundled example config into the cwd so a new
+ *  user is one edit away from running. Never overwrites an existing config. */
+function runInit(): void {
+  const target = resolve("rag-mcp.config.json");
+  if (existsSync(target)) {
+    console.error(`[rag-mcp-router] ${target} already exists — not overwriting.`);
+    console.error("[rag-mcp-router] edit it, then run: npx rag-mcp-router --config rag-mcp.config.json");
+    return;
+  }
+  const distDir = dirname(fileURLToPath(import.meta.url));
+  const example = join(distDir, "..", "rag-mcp.config.example.json");
+  copyFileSync(example, target);
+  console.error(`[rag-mcp-router] wrote starter config to ${target}`);
+  console.error('[rag-mcp-router] next: edit the "mcpServers" block to point at your servers, then run:');
+  console.error("[rag-mcp-router]   npx rag-mcp-router --config rag-mcp.config.json");
+}
+
 async function main() {
-  const { config: configPath } = parseArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  if (argv[0] === "init") return runInit();
+  if (argv[0] === "--help" || argv[0] === "-h") {
+    console.log(HELP);
+    return;
+  }
+
+  const { config: configPath } = parseArgs(argv);
 
   // All logging goes to stderr — stdout is reserved for the MCP protocol stream.
   console.error(`[rag-mcp-router] loading config from ${configPath}`);

@@ -1,6 +1,6 @@
 {
   "name": "rag-mcp-router",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Open-source RAG router for MCP — sits in front of all your MCP servers and exposes only the relevant tools per query, killing context overload.",
   "license": "Apache-2.0",
   "author": "noderguru <noderguru@gmail.com>",
