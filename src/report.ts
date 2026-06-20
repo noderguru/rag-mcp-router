@@ -80,6 +80,8 @@ function buildLiveBlock(input: ReportInput): string {
     pricePerMTok: config.billing.pricePerMTok ?? 3.0,
     windowK: (config.billing.contextWindow ?? 200000) / 1000,
     requests: snapshot.totalRequests || 1,
+    // Phase R — result-side savings, separate from the definition-side numbers.
+    resultTokensDeferred: snapshot.resultTokensDeferred,
     sort: { key: "tokens", dir: "desc" },
     filter: "",
     surfacedOnly: false,

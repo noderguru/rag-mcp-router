@@ -6,6 +6,7 @@ import { dispatch } from "./dispatch.js";
 import type { Retriever, ToolHit } from "./retriever.js";
 import type { Metrics } from "./metrics.js";
 import { registerPinned } from "./pinned.js";
+import { ResultStore, applyResultPolicy } from "./results.js";
 
 /**
  * The MCP server the *client* sees. It exposes only three facade tools instead
@@ -22,8 +23,13 @@ export function createFacade(
   retriever: Retriever,
   metrics?: Metrics,
   catalog?: ToolHit[],
+  store?: ResultStore,
 ): McpServer {
   const server = new McpServer({ name: "rag-mcp-router", version: "0.1.0" });
+
+  // Phase R — result store. Owned by the caller (index.ts) so it can be
+  // disposed on shutdown; fall back to a local one for standalone use.
+  const resultStore = store ?? new ResultStore(cfg.results, ".rag-mcp");
 
   server.registerTool(
     "search_tools",
@@ -60,7 +66,35 @@ export function createFacade(
     },
     async ({ server: srv, name, arguments: args }) => {
       if (metrics) metrics.recordCall(srv, name);
-      return dispatch(conns, srv, name, args ?? {});
+      const res = await dispatch(conns, srv, name, args ?? {});
+      return applyResultPolicy(res, { cfg: cfg.results, store: resultStore, metrics, server: srv, name });
+    },
+  );
+
+  server.registerTool(
+    "get_result",
+    {
+      title: "Read more of a deferred result",
+      description:
+        "Fetch the remainder of a large result that call_tool deferred. Pass the " +
+        "resultId from the deferred result, plus an offset (and optional limit) to " +
+        "page through the rest. Nothing is lost — the full payload is held server-side.",
+      inputSchema: {
+        resultId: z.string().describe("resultId from a deferred call_tool result"),
+        offset: z.number().int().min(0).optional().describe("Character offset to start from (default 0)"),
+        limit: z.number().int().positive().optional().describe("Max characters to return"),
+      },
+    },
+    async ({ resultId, offset, limit }) => {
+      const got = resultStore.get(resultId, offset ?? 0, limit ?? cfg.results.maxTokens * 4);
+      if (!got) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `result "${resultId}" is unknown or has expired` }],
+        };
+      }
+      const { slice, ...meta } = got;
+      return { content: [{ type: "text", text: slice }, { type: "text", text: JSON.stringify(meta) }] };
     },
   );
 
@@ -103,7 +137,7 @@ export function createFacade(
 
   // Pinned tools — exposed directly so the client can call them without search_tools.
   if (catalog && cfg.retrieval.pinned.length) {
-    registerPinned(server, catalog, cfg.retrieval.pinned, conns, metrics);
+    registerPinned(server, catalog, cfg.retrieval.pinned, conns, metrics, resultStore, cfg.results);
   }
 
   return server;

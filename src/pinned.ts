@@ -4,6 +4,8 @@ import type { Conn } from "./downstream.js";
 import { dispatch } from "./dispatch.js";
 import type { ToolHit } from "./retriever.js";
 import type { Metrics } from "./metrics.js";
+import { applyResultPolicy, type ResultStore } from "./results.js";
+import type { ResultsConfig } from "./config.js";
 
 /** A JSON Schema property as it appears in a tool's inputSchema. */
 interface JsonSchemaProp {
@@ -77,6 +79,8 @@ export function registerPinned(
   pinned: string[],
   conns: Conn[],
   metrics?: Metrics,
+  store?: ResultStore,
+  resultsCfg?: ResultsConfig,
 ): ToolHit[] {
   const registered: ToolHit[] = [];
   for (const key of pinned) {
@@ -94,7 +98,12 @@ export function registerPinned(
       },
       async (args: Record<string, unknown>) => {
         if (metrics) metrics.recordCall(hit.server, hit.name);
-        return dispatch(conns, hit.server, hit.name, args ?? {});
+        const res = await dispatch(conns, hit.server, hit.name, args ?? {});
+        // Pinned calls go through the same Phase R result policy as call_tool.
+        if (store && resultsCfg) {
+          return applyResultPolicy(res, { cfg: resultsCfg, store, metrics, server: hit.server, name: hit.name });
+        }
+        return res;
       },
     );
     registered.push(hit);

@@ -106,6 +106,10 @@ export interface MetricsSnapshot {
   sessionActualSum: number;
   sessionSavedSum: number;
 
+  // Phase R — result-side savings, a SECOND axis independent of the
+  // definition-side numbers above. Tokens held back from large tool results.
+  resultTokensDeferred: number;
+
   // surfaced-tool tracking per-request (for table)
   surfacedThisSession: string[]; // "server.name" keys
 }
@@ -121,6 +125,9 @@ export class Metrics {
   sessionBaselineSum = 0;
   sessionActualSum = 0;
   sessionSavedSum = 0;
+
+  /** Phase R — sum of tokens deferred out of large results this session. */
+  resultTokensDeferred = 0;
 
   /** Surfacings this session — for the dashboard "surfaced" column. */
   surfacedSet = new Set<string>();
@@ -156,6 +163,11 @@ export class Metrics {
     this.perToolCalls.set(key, (this.perToolCalls.get(key) ?? 0) + 1);
   }
 
+  /** Phase R — record tokens held back from a large result (total − shown). */
+  recordDeferred(tokens: number): void {
+    if (tokens > 0) this.resultTokensDeferred += tokens;
+  }
+
   snapshot(): MetricsSnapshot {
     const perToolCalls: PerToolCall[] = [];
     for (const [key, calls] of this.perToolCalls) {
@@ -175,6 +187,7 @@ export class Metrics {
       sessionBaselineSum: this.sessionBaselineSum,
       sessionActualSum: this.sessionActualSum,
       sessionSavedSum: this.sessionSavedSum,
+      resultTokensDeferred: this.resultTokensDeferred,
       surfacedThisSession: [...this.surfacedSet],
     };
   }

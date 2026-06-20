@@ -18,6 +18,13 @@
     "candidates": 20,
     "pinned": []
   },
+  "results": {
+    "maxTokens": 2000,
+    "strategy": "spill",
+    "store": "disk",
+    "ttlSeconds": 900,
+    "dropFields": {}
+  },
   "mcpServers": {
     "github": {
       "command": "npx",

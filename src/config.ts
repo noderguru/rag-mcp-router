@@ -61,11 +61,34 @@ const RetrievalSchema = z
   .strict()
   .default({});
 
+/** Phase R — runtime result optimization. Trims large tool *results* before
+ *  they enter the model context. Default posture is lossless: oversized results
+ *  are held in a store and replaced with a preview + a handle to read the rest
+ *  via the `get_result` facade tool. */
+const ResultsSchema = z
+  .object({
+    /** Results at or under this token count pass through untouched (zero overhead). */
+    maxTokens: z.number().int().positive().default(2000),
+    /** "passthrough" = never trim; "spill" = store full + return preview (lossless);
+     *  "truncate" = cut to budget with a marker (lossy, opt-in). */
+    strategy: z.enum(["passthrough", "spill", "truncate"]).default("spill"),
+    /** Where deferred results live: in-memory map or under `.rag-mcp/results/`. */
+    store: z.enum(["memory", "disk"]).default("disk"),
+    /** Deferred results older than this are swept. */
+    ttlSeconds: z.number().int().positive().default(900),
+    /** Opt-in per-tool field projection: drop named noisy fields from JSON results.
+     *  Keyed by tool `name` or `server.name`. Empty by default. */
+    dropFields: z.record(z.array(z.string())).default({}),
+  })
+  .strict()
+  .default({});
+
 const ConfigSchema = z
   .object({
     billing: BillingSchema,
     embedding: EmbeddingSchema,
     retrieval: RetrievalSchema,
+    results: ResultsSchema,
     mcpServers: z
       .record(ServerSpecSchema)
       .refine((m) => Object.keys(m).length > 0, {
@@ -76,6 +99,7 @@ const ConfigSchema = z
 
 export type ServerSpec = z.infer<typeof ServerSpecSchema>;
 export type RouterConfig = z.infer<typeof ConfigSchema>;
+export type ResultsConfig = RouterConfig["results"];
 
 /** Turn a ZodError into a compact, path-prefixed, multi-line message. */
 function formatZodError(err: z.ZodError): string {

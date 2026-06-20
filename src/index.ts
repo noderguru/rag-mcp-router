@@ -9,6 +9,7 @@ import { createFacade } from "./facade.js";
 import { buildCatalog, buildRetriever } from "./retriever.js";
 import { Metrics, countTokens, toolSchemaTokens, facadeToolTokens } from "./metrics.js";
 import { generateReport } from "./report.js";
+import { ResultStore } from "./results.js";
 import type { ToolHit } from "./retriever.js";
 
 /** Local runtime state (persisted index + cached embedding model). Gitignored. */
@@ -48,13 +49,16 @@ async function main() {
       (pinnedHits.length ? ` (incl. ${pinnedHits.length} pinned)` : ""),
   );
 
-  const facade = createFacade(conns, cfg, retriever, metrics, catalog);
+  // Phase R — result store, owned here so shutdown can dispose it.
+  const resultStore = new ResultStore(cfg.results, STATE_DIR);
+  const facade = createFacade(conns, cfg, retriever, metrics, catalog, resultStore);
 
   // ── graceful shutdown → report.html ─────────────────────────────────
   let shuttingDown = false;
   const onShutdown = async () => {
     if (shuttingDown) return;
     shuttingDown = true;
+    resultStore.dispose();
     try {
       const reportPath = join(STATE_DIR, "report.html");
       // `dist/` is flat, `docs/` is at the repo root.
@@ -79,7 +83,9 @@ async function main() {
   process.on("SIGTERM", onShutdown);
 
   await facade.connect(new StdioServerTransport());
-  console.error("[rag-mcp-router] facade ready on stdio (search_tools / call_tool / list_servers / get_metrics)");
+  console.error(
+    "[rag-mcp-router] facade ready on stdio (search_tools / call_tool / get_result / list_servers / get_metrics)",
+  );
 }
 
 // ── token-counting helpers ────────────────────────────────────────────
@@ -89,8 +95,8 @@ async function sumSchemaTokens(catalog: ToolHit[]): Promise<number> {
   return counts.reduce((a, b) => a + b, 0);
 }
 
-/** Token count of the 4 facade-tool schemas as the client sees them in
- *  `tools/list`.  These 4 tools replace the full downstream catalog. */
+/** Token count of the facade-tool schemas as the client sees them in
+ *  `tools/list`.  These few tools replace the full downstream catalog. */
 async function facadeOverhead(): Promise<number> {
   const tools = [
     {
@@ -114,6 +120,15 @@ async function facadeOverhead(): Promise<number> {
       name: "list_servers",
       desc: "Show every connected downstream server and how many tools it exposes.",
       schema: {},
+    },
+    {
+      name: "get_result",
+      desc: "Fetch the remainder of a large result that call_tool deferred. Pass the resultId from the deferred result, plus an offset (and optional limit) to page through the rest. Nothing is lost — the full payload is held server-side.",
+      schema: {
+        resultId: { description: "resultId from a deferred call_tool result", _def: { typeName: "ZodString" } },
+        offset: { description: "Character offset to start from (default 0)", _def: { typeName: "ZodNumber" } },
+        limit: { description: "Max characters to return", _def: { typeName: "ZodNumber" } },
+      },
     },
     {
       name: "get_metrics",
