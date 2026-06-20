@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`init` now auto-detects host servers** — `npx rag-mcp-router init` scans the MCP
+  configs of supported clients (Cursor, Claude Code, VS Code, Cline, Windsurf, OpenCode,
+  Qwen Code, Kimi, …) and pre-fills `rag-mcp.config.json` with the servers found, so most
+  users run with zero hand-editing. Add `--from <path>` to import from one specific file.
+  Tolerates JSONC comments, array-form `command`, `environment`/`env`, and `servers`/
+  `mcpServers` shapes; skips disabled entries and self-references.
+
+### Changed
+- **Graceful config errors** — a missing config no longer crashes with a raw `ENOENT`
+  stack trace. The router (and `.mcp.json` plugin launch) now exits with a clear
+  `run \`npx rag-mcp-router init\`` hint. Invalid JSON and schema failures are likewise
+  reported as clean `ConfigError` messages.
+
 ## [0.2.0] - 2026-06-20
 
 ### Added

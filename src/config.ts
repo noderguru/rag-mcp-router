@@ -2,10 +2,20 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 
+/** A user-facing config problem (missing file, bad JSON, invalid schema).
+ *  The CLI prints its message cleanly, without a stack trace — these are
+ *  setup mistakes to fix, not bugs to report. */
+export class ConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ConfigError";
+  }
+}
+
 /** A single downstream MCP server entry — same shape as the standard
  *  `mcpServers` block in Claude/Cursor configs, so users migrate by pasting.
  *  Exactly one of `command` (stdio) or `url` (Streamable HTTP) must be set. */
-const ServerSpecSchema = z
+export const ServerSpecSchema = z
   .object({
     /** stdio: executable to spawn */
     command: z.string().min(1).optional(),
@@ -120,8 +130,16 @@ export function loadConfig(path: string): RouterConfig {
   try {
     text = readFileSync(resolved, "utf8");
   } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new ConfigError(
+        `config not found at ${path}\n` +
+          "  No router config yet. Scaffold one and point it at your servers:\n" +
+          "    npx rag-mcp-router init        # writes a starter rag-mcp.config.json\n" +
+          '    # then edit the "mcpServers" block, and run the router again.',
+      );
+    }
     const reason = err instanceof Error ? err.message : String(err);
-    throw new Error(`config ${path}: cannot read file — ${reason}`);
+    throw new ConfigError(`config ${path}: cannot read file — ${reason}`);
   }
 
   let json: unknown;
@@ -129,12 +147,12 @@ export function loadConfig(path: string): RouterConfig {
     json = JSON.parse(text);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
-    throw new Error(`config ${path}: invalid JSON — ${reason}`);
+    throw new ConfigError(`config ${path}: invalid JSON — ${reason}`);
   }
 
   const result = ConfigSchema.safeParse(json);
   if (!result.success) {
-    throw new Error(`config ${path}: validation failed —\n${formatZodError(result.error)}`);
+    throw new ConfigError(`config ${path}: validation failed —\n${formatZodError(result.error)}`);
   }
   return result.data;
 }

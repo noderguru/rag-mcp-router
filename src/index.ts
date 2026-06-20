@@ -3,7 +3,8 @@ import { writeFileSync, existsSync, copyFileSync, readFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, ConfigError } from "./config.js";
+import { discoverHostServers } from "./discover.js";
 import { connectAll } from "./downstream.js";
 import { createFacade } from "./facade.js";
 import { buildCatalog, buildRetriever } from "./retriever.js";
@@ -24,35 +25,61 @@ function parseArgs(argv: string[]): { config: string } {
 const HELP = `rag-mcp-router — semantic tool selection for MCP
 
 Usage:
-  rag-mcp-router init                 Scaffold a starter rag-mcp.config.json
+  rag-mcp-router init                 Scaffold rag-mcp.config.json, auto-detecting
+                                      servers from your host client config(s)
+  rag-mcp-router init --from <file>   Scaffold from one specific host config
   rag-mcp-router --config <file>      Run the router (default: rag-mcp.config.json)
   rag-mcp-router --help               Show this help
 
 Quick start:
-  npx rag-mcp-router init             # then edit "mcpServers" in the new file
+  npx rag-mcp-router init             # imports your existing MCP servers
   npx rag-mcp-router --config rag-mcp.config.json
 `;
 
-/** `init` subcommand: copy the bundled example config into the cwd so a new
- *  user is one edit away from running. Never overwrites an existing config. */
-function runInit(): void {
+/** `init` subcommand: scaffold `rag-mcp.config.json` in the cwd. It auto-detects
+ *  the MCP servers already configured in the user's host client(s) and pre-fills
+ *  them, so a new user usually runs with zero hand-editing. `--from <path>` pins
+ *  discovery to one config file. Falls back to the bundled placeholder template
+ *  when nothing is detected. Never overwrites an existing config. */
+function runInit(argv: string[]): void {
   const target = resolve("rag-mcp.config.json");
   if (existsSync(target)) {
     console.error(`[rag-mcp-router] ${target} already exists — not overwriting.`);
     console.error("[rag-mcp-router] edit it, then run: npx rag-mcp-router --config rag-mcp.config.json");
     return;
   }
-  const distDir = dirname(fileURLToPath(import.meta.url));
-  const example = join(distDir, "..", "rag-mcp.config.example.json");
-  copyFileSync(example, target);
-  console.error(`[rag-mcp-router] wrote starter config to ${target}`);
-  console.error('[rag-mcp-router] next: edit the "mcpServers" block to point at your servers, then run:');
-  console.error("[rag-mcp-router]   npx rag-mcp-router --config rag-mcp.config.json");
+
+  const fromIdx = argv.indexOf("--from");
+  const sources = fromIdx >= 0 && argv[fromIdx + 1] ? [resolve(argv[fromIdx + 1])] : undefined;
+
+  const { servers, sources: found } = discoverHostServers({ sources });
+  const names = Object.keys(servers);
+
+  if (names.length === 0) {
+    // Nothing detected — drop the bundled example so the user still has a
+    // working template to edit (placeholders, not real servers).
+    const distDir = dirname(fileURLToPath(import.meta.url));
+    copyFileSync(join(distDir, "..", "rag-mcp.config.example.json"), target);
+    console.error(`[rag-mcp-router] no host MCP config detected — wrote a starter template to ${target}`);
+    console.error('[rag-mcp-router] edit the "mcpServers" block to point at your servers, then run:');
+    console.error("[rag-mcp-router]   npx rag-mcp-router --config rag-mcp.config.json");
+    return;
+  }
+
+  writeFileSync(target, JSON.stringify({ mcpServers: servers }, null, 2) + "\n", "utf8");
+  console.error(`[rag-mcp-router] wrote ${target} — auto-detected ${names.length} server(s) from your host config:`);
+  for (const s of found) {
+    console.error(`[rag-mcp-router]   • ${s.client}: ${s.names.join(", ")}  (${s.path})`);
+  }
+  console.error("[rag-mcp-router] one manual step remains so the router actually shrinks your context:");
+  console.error("[rag-mcp-router]   remove those servers from your client's own MCP config, keep only rag-mcp-router —");
+  console.error("[rag-mcp-router]   otherwise the client still loads them directly and nothing is hidden.");
+  console.error("[rag-mcp-router] then run: npx rag-mcp-router --config rag-mcp.config.json");
 }
 
 async function main() {
   const argv = process.argv.slice(2);
-  if (argv[0] === "init") return runInit();
+  if (argv[0] === "init") return runInit(argv.slice(1));
   if (argv[0] === "--help" || argv[0] === "-h") {
     console.log(HELP);
     return;
@@ -189,6 +216,12 @@ async function facadeOverhead(): Promise<number> {
 }
 
 main().catch((err) => {
-  console.error("[rag-mcp-router] fatal:", err);
+  // Config problems are setup mistakes, not bugs — print the message cleanly
+  // (with its `init` hint) instead of dumping a stack trace at the user.
+  if (err instanceof ConfigError) {
+    console.error(`[rag-mcp-router] ${err.message}`);
+  } else {
+    console.error("[rag-mcp-router] fatal:", err);
+  }
   process.exit(1);
 });

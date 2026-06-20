@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig } from "../src/config.js";
+import { loadConfig, ConfigError } from "../src/config.js";
 
 /** Write `obj` (or raw string) to a temp config file and return its path. */
 function tmpConfig(content: unknown): string {
@@ -91,6 +91,11 @@ test("reports invalid JSON clearly", () => {
   assert.throws(() => loadConfig(tmpConfig("{ not json ")), /invalid JSON/);
 });
 
-test("reports a missing file clearly", () => {
-  assert.throws(() => loadConfig("/no/such/path/cfg.json"), /cannot read file/);
+test("reports a missing file with an init hint, not a crash", () => {
+  assert.throws(() => loadConfig("/no/such/path/cfg.json"), (err: unknown) => {
+    assert.ok(err instanceof ConfigError, "missing config should be a ConfigError");
+    assert.match(err.message, /config not found/);
+    assert.match(err.message, /rag-mcp-router init/);
+    return true;
+  });
 });

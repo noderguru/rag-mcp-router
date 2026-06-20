@@ -191,11 +191,21 @@ Get started in one command — no clone, no manual file copying:
 npx rag-mcp-router@latest init    # scaffolds rag-mcp.config.json in the current dir
 ```
 
-Edit the generated `rag-mcp.config.json` to point at your MCP servers, then run:
+`init` **auto-detects the MCP servers already configured in your host client(s)** — Cursor,
+Claude Code, VS Code, Cline, Windsurf, OpenCode, Qwen Code, Kimi, … — and pre-fills
+`rag-mcp.config.json` with them (commands, args, and env/tokens included), so there's usually
+nothing to hand-edit. To import from one specific file instead of scanning, use
+`init --from <path>`. If nothing is detected, it drops a placeholder template to edit.
+
+Then run:
 
 ```bash
 npx rag-mcp-router@latest --config rag-mcp.config.json
 ```
+
+> **One manual step to actually save context:** move those servers *out* of your client's own
+> MCP config and leave **only** `rag-mcp-router`. Otherwise the client keeps loading them
+> directly and the router has nothing to hide.
 
 Or from a clone (uses pnpm):
 
@@ -228,10 +238,12 @@ so it can be installed through a plugin marketplace and registers the router as 
 automatically.
 
 > **One required step first:** the router is a *meta*-server — it needs to know which
-> downstream servers to route to. Run `npx rag-mcp-router init` in your project and edit the
-> generated `rag-mcp.config.json` **before** enabling the plugin, otherwise the server starts
-> with no servers to route to. The bundled `.mcp.json` launches it with
-> `--config rag-mcp.config.json` resolved from your project directory.
+> downstream servers to route to. Run `npx rag-mcp-router init` in your project **before**
+> enabling the plugin; it auto-detects your existing host servers and writes
+> `rag-mcp.config.json` (review it, then move those servers out of your client's direct config
+> so only the router remains). Without a config the bundled `.mcp.json` — which launches the
+> router with `--config rag-mcp.config.json` resolved from your project directory — now exits
+> with a clear `run \`npx rag-mcp-router init\`` hint instead of a stack trace.
 
 ## Configuration
 
