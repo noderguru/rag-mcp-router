@@ -43,7 +43,10 @@ export function generateReport(input: ReportInput): string {
 
   const liveBlock = buildLiveBlock(input);
 
-  return before + liveBlock + "\n" + after;
+  const assembled = before + liveBlock + "\n" + after;
+  // Stamp the live router version into the footer (the prototype hardcodes a
+  // placeholder version that would otherwise ship in every generated report).
+  return assembled.replace(/rag-mcp-router v\d+\.\d+\.\d+/, `rag-mcp-router v${input.version}`);
 }
 
 // ── live-data block ──────────────────────────────────────────────────

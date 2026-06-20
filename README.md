@@ -26,7 +26,7 @@ that actually match what it's trying to do right now.
 - **Local-first** — no API key, no network at runtime once the embedding model is cached.
 - **Transparent savings** — every session writes an interactive `report.html` dashboard
   showing exactly how many tokens (and how much money / context) the router saved.
-  [▶ Try the live demo](https://htmlpreview.github.io/?https://github.com/noderguru/rag-mcp-router/blob/main/docs/report-prototype.html).
+  [▶ Try the live demo](https://htmlpreview.github.io/?https://raw.githubusercontent.com/noderguru/rag-mcp-router/main/docs/report-prototype.html) (works once the repo is public).
 - **Fully open source** — Apache-2.0, no open-core, no telemetry.
 - **Drop-in** — config uses the same `mcpServers` shape as Claude/Cursor.
 
@@ -223,8 +223,32 @@ retrieval is fully offline.
 
 ## Configuration
 
-The config file mirrors the standard `mcpServers` shape, plus a few tuning blocks. Full
-example (also in [`rag-mcp.config.example.json`](./rag-mcp.config.example.json)):
+**You only need an `mcpServers` block.** Every other block (`embedding`, `retrieval`,
+`results`, `billing`) is **optional** — omit it and the documented defaults apply, which are
+tuned to work well out of the box. This is exactly what `npx rag-mcp-router init` writes
+(also in [`rag-mcp.config.example.json`](./rag-mcp.config.example.json)):
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_xxx" }
+    },
+    "figma": {
+      "url": "https://figma.example/mcp"
+    }
+  }
+}
+```
+
+`mcpServers` uses the **same shape** as your Claude/Cursor config, so you can paste your
+existing servers straight in. Each entry sets exactly one of `command` (stdio) or `url`
+(Streamable HTTP).
+
+<details>
+<summary><b>Advanced:</b> the full config with every tuning block (all optional — the values shown are the defaults)</summary>
 
 ```json
 {
@@ -267,6 +291,9 @@ example (also in [`rag-mcp.config.example.json`](./rag-mcp.config.example.json))
 }
 ```
 
+Each block is documented below.
+</details>
+
 ### `mcpServers`
 
 Each entry sets **exactly one** of `command` (stdio) or `url` (Streamable HTTP) — the same
@@ -301,9 +328,18 @@ untouched (zero overhead).
 
 ### `embedding` & `billing`
 
-`embedding.model` selects the local embedding model (`bge-small-en-v1.5` by default).
-`billing` drives the savings dashboard: `mode` (`subscription` or `api`), `client` (for
-client-specific tool caps), `contextWindow`, and `pricePerMTok` (API mode).
+Both blocks are **optional** — leave them out unless you have a reason to change them.
+
+`embedding` picks the engine that turns tool descriptions into vectors. Today the only
+`backend` is `"local"` (no API key, no network at query time), and `model` defaults to
+`bge-small-en-v1.5` — small, fast, downloaded once and cached under `.rag-mcp/models/`. So
+the `embedding` block in the full example above changes nothing; it just makes the default
+explicit. You'd only touch it to swap the model (e.g. `bge-base-en-v1.5` for higher quality
+at more CPU/RAM).
+
+`billing` only drives the **savings dashboard** (it never affects routing): `mode`
+(`subscription` or `api`), `client` (label + client-specific tool caps), `contextWindow`,
+and `pricePerMTok` (API mode only).
 
 ## Usage
 
@@ -318,11 +354,18 @@ A typical agent flow through the router:
 
 ### Savings dashboard
 
+[![rag-mcp-router savings dashboard](./docs/dashboard-preview.png)](https://htmlpreview.github.io/?https://raw.githubusercontent.com/noderguru/rag-mcp-router/main/docs/report-prototype.html)
+
 **Every time you stop the router (`SIGINT`/`SIGTERM`), it writes a self-contained
 `report.html` into `.rag-mcp/`** — an interactive dashboard of exactly what it saved that
 session. Open it in any browser; no server needed.
 
-> **▶ [Try the interactive dashboard demo](https://htmlpreview.github.io/?https://github.com/noderguru/rag-mcp-router/blob/main/docs/report-prototype.html)** — the same report, rendered live with sample data, so you can click around before installing.
+> **▶ [Try the interactive dashboard demo](https://htmlpreview.github.io/?https://raw.githubusercontent.com/noderguru/rag-mcp-router/main/docs/report-prototype.html)** — the same report, rendered live with sample data, so you can click around before installing.
+
+> **Where does it show up?** Nothing pops up automatically — the router is a background MCP
+> server, and your client (Claude Code, Cursor, …) stops it when the session ends, which is
+> when `.rag-mcp/report.html` is written next to where you ran it. Open that file yourself.
+> For numbers *during* a session, the agent can call the `get_metrics` tool any time.
 
 It shows both savings axes — definition-side (tools not loaded into context) and result-side
 (`get_result` deferrals) — in either **API** mode (`$ saved`) or **subscription** mode (freed

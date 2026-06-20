@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { writeFileSync, existsSync, copyFileSync } from "node:fs";
+import { writeFileSync, existsSync, copyFileSync, readFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -97,14 +97,14 @@ async function main() {
     resultStore.dispose();
     try {
       const reportPath = join(STATE_DIR, "report.html");
-      // `dist/` is flat, `docs/` is at the repo root.
+      // `dist/` is flat, `docs/` and `package.json` are at the repo root.
       const distDir = dirname(fileURLToPath(import.meta.url));
       const prototypePath = join(distDir, "..", "docs", "report-prototype.html");
       const html = generateReport({
         catalog,
         snapshot: metrics.snapshot(),
         config: cfg,
-        version: "0.1.0",
+        version: readVersion(distDir),
         prototypePath,
       });
       writeFileSync(reportPath, html, "utf8");
@@ -122,6 +122,17 @@ async function main() {
   console.error(
     "[rag-mcp-router] facade ready on stdio (search_tools / call_tool / get_result / list_servers / get_metrics)",
   );
+}
+
+/** Read the package version from the bundled package.json (one level above
+ *  the flat `dist/`). Falls back to "0.0.0" if it can't be read. */
+function readVersion(distDir: string): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(distDir, "..", "package.json"), "utf8")) as { version?: string };
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
 }
 
 // ── token-counting helpers ────────────────────────────────────────────

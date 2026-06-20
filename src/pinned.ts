@@ -62,7 +62,7 @@ export function jsonSchemaToZodShape(inputSchema: ToolHit["inputSchema"]): Recor
 }
 
 /** Sanitize "server.name" into a valid MCP tool name (`[A-Za-z0-9_-]`). */
-function pinnedToolName(server: string, name: string): string {
+export function pinnedToolName(server: string, name: string): string {
   return `${server}.${name}`.replace(/[^A-Za-z0-9_-]/g, "_");
 }
 

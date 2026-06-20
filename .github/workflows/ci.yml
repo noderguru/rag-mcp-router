@@ -27,8 +27,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck + build
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
         run: pnpm build
 
       - name: Unit tests
         run: pnpm test
+
+      - name: Smoke test (client → router → downstream, end to end)
+        run: pnpm smoke

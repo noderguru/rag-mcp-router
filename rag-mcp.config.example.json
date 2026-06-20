@@ -1,30 +1,4 @@
 {
-  "billing": {
-    "mode": "subscription",
-    "client": "cursor",
-    "contextWindow": 200000
-  },
-  "embedding": {
-    "backend": "local",
-    "model": "bge-small-en-v1.5"
-  },
-  "retrieval": {
-    "topK": 6,
-    "hybrid": true,
-    "alpha": 0.7,
-    "beta": 0.3,
-    "rerank": false,
-    "rerankLambda": 0.7,
-    "candidates": 20,
-    "pinned": []
-  },
-  "results": {
-    "maxTokens": 2000,
-    "strategy": "spill",
-    "store": "disk",
-    "ttlSeconds": 900,
-    "dropFields": {}
-  },
   "mcpServers": {
     "github": {
       "command": "npx",
