@@ -1,0 +1,21 @@
+{
+  "name": "rag-mcp-router",
+  "description": "Semantic tool selection for MCP — sits in front of all your MCP servers and exposes only the relevant tools per query, killing context overload.",
+  "version": "0.2.0",
+  "author": {
+    "name": "noderguru",
+    "url": "https://github.com/noderguru"
+  },
+  "homepage": "https://github.com/noderguru/rag-mcp-router",
+  "repository": "https://github.com/noderguru/rag-mcp-router",
+  "license": "Apache-2.0",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "rag",
+    "tool-selection",
+    "semantic-search",
+    "context-optimization",
+    "ai-agents"
+  ]
+}

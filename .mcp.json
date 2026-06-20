@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "rag-mcp-router": {
+      "command": "npx",
+      "args": ["-y", "rag-mcp-router", "--config", "rag-mcp.config.json"]
+    }
+  }
+}

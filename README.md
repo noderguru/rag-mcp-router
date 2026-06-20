@@ -221,6 +221,18 @@ Then point your MCP client at the router as its **single** server:
 The first run downloads the embedding model once (cached under `.rag-mcp/`); after that,
 retrieval is fully offline.
 
+### Install as a Claude Code plugin
+
+The repo ships a Claude Code plugin manifest (`.claude-plugin/plugin.json` + `.mcp.json`),
+so it can be installed through a plugin marketplace and registers the router as an MCP server
+automatically.
+
+> **One required step first:** the router is a *meta*-server — it needs to know which
+> downstream servers to route to. Run `npx rag-mcp-router init` in your project and edit the
+> generated `rag-mcp.config.json` **before** enabling the plugin, otherwise the server starts
+> with no servers to route to. The bundled `.mcp.json` launches it with
+> `--config rag-mcp.config.json` resolved from your project directory.
+
 ## Configuration
 
 **You only need an `mcpServers` block.** Every other block (`embedding`, `retrieval`,
